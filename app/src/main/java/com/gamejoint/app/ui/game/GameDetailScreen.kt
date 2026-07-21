@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,32 +19,49 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameDetailScreen(
     gameId: Long,
-    viewModel: GameDetailViewModel = viewModel()
+    viewModel: GameDetailViewModel = viewModel(),
+    onNavigateToProfile: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val userReviews by viewModel.userReviews.collectAsState()
     val criticReviews by viewModel.criticReviews.collectAsState()
     val avgUserScore by viewModel.avgUserScore.collectAsState()
 
-    // AUTHENTICATION STATES
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val currentUserRole by viewModel.currentUserRole.collectAsState()
     val isBanned by viewModel.isBanned.collectAsState()
+    val existingReviewId by viewModel.existingReviewId.collectAsState()
+    val draftScore by viewModel.draftScore.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = User, 1 = Critic
+    var selectedTab by remember { mutableIntStateOf(0) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
+
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(gameId) {
         viewModel.loadGame(gameId)
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.feedbackMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
@@ -53,7 +72,7 @@ fun GameDetailScreen(
                 val game = state.game
 
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    // --- 1. HERO BANNER ---
+                    // 1. HERO BANNER
                     item {
                         AsyncImage(
                             model = game.coverImage,
@@ -68,14 +87,16 @@ fun GameDetailScreen(
                         )
                     }
 
-                    // --- 2. TITLE ---
+                    // 2. TITLE & GENRE TAGS
                     item {
                         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Text(game.title ?: "Unknown", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                game.genres?.take(3)?.forEach { genre ->
+                                // Fallback to either list format provided by API
+                                val activeGenres = game.genreNames?.toList() ?: game.genres ?: emptyList()
+                                activeGenres.take(3).forEach { genre ->
                                     Box(modifier = Modifier.background(Color(0xFF2D9CDB), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                                         Text(genre, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -85,7 +106,7 @@ fun GameDetailScreen(
                         }
                     }
 
-                    // --- 3. SCORE HUB ---
+                    // 3. SCORE HUB
                     item {
                         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -113,15 +134,38 @@ fun GameDetailScreen(
                         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 16.dp, horizontal = 16.dp))
                     }
 
-                    // --- 4. ABOUT ---
+                    // 4. ABOUT (NOW WITH METADATA)
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).animateContentSize()) {
                             Text("About", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // --- NEW: Dynamic Game Metadata ---
+                            val platformsStr = game.platformNames?.joinToString(", ") ?: game.platforms?.joinToString(", ")
+
+                            val metaDataMap = mapOf(
+                                "Developer" to game.developer,
+                                "Publisher" to game.publisher,
+                                "Release Date" to game.releaseDate,
+                                "Platforms" to platformsStr
+                            )
+
+                            metaDataMap.forEach { (label, value) ->
+                                if (!value.isNullOrBlank()) {
+                                    Row(modifier = Modifier.padding(bottom = 4.dp)) {
+                                        Text("$label: ", color = Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(value, color = Color.LightGray, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
                             Text(
-                                text = game.description ?: "No description.",
+                                text = game.description ?: "No description available.",
                                 color = Color.LightGray, fontSize = 14.sp, lineHeight = 20.sp,
-                                maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 4
+                                maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 4,
+                                overflow = TextOverflow.Ellipsis
                             )
                             TextButton(onClick = { isDescriptionExpanded = !isDescriptionExpanded }, contentPadding = PaddingValues(0.dp)) {
                                 Text(if (isDescriptionExpanded) "Show Less" else "Read More", color = Color(0xFF55C72E))
@@ -130,41 +174,56 @@ fun GameDetailScreen(
                         }
                     }
 
-                    // --- 5. CONDITIONAL REVIEW BOX ---
+                    // 5. CONDITIONAL REVIEW BOX
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                             Text("Your Review", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             if (!isLoggedIn) {
-                                // GUEST
                                 Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
                                     Text("Sign in or create an account to rate and review this game.", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             } else if (isBanned) {
-                                // BANNED USER
                                 Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF331111), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
                                     Text("Your account has been restricted. You cannot post reviews at this time.", color = Color(0xFFFF3333), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             } else if (currentUserRole in 1L..3L) {
-                                // STAFF MEMBER
                                 Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
                                     Text("Staff members cannot write reviews.", color = Color.Gray, fontSize = 14.sp)
                                 }
+                            } else if (existingReviewId != null) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("You have already reviewed this game.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Score: $draftScore", color = getScoreColor(draftScore, currentUserRole == 4L), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        IconButton(onClick = { viewModel.showReviewModal.value = true }) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Edit Review", tint = Color(0xFF2D9CDB))
+                                        }
+                                        IconButton(onClick = { showDeleteConfirm = true }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete Review", tint = Color.Red)
+                                        }
+                                    }
+                                }
                             } else {
-                                // VALID CRITIC OR USER
                                 Box(
                                     modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).clickable { viewModel.showReviewModal.value = true }.padding(16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("Tap to manage or edit your review...", color = Color(0xFF2D9CDB), fontWeight = FontWeight.Bold)
+                                    Text("Tap to write a review...", color = Color(0xFF2D9CDB), fontWeight = FontWeight.Bold)
                                 }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
 
-                    // --- 6. NAVIGATION TABS ---
+                    // 6. NAVIGATION TABS
                     item {
                         SecondaryTabRow(
                             selectedTabIndex = selectedTab,
@@ -180,7 +239,7 @@ fun GameDetailScreen(
                         }
                     }
 
-                    // --- 7. REVIEWS LIST FEED ---
+                    // 7. REVIEWS LIST FEED
                     val activeReviews = if (selectedTab == 0) userReviews else criticReviews
 
                     if (activeReviews.isEmpty()) {
@@ -197,12 +256,13 @@ fun GameDetailScreen(
                                 isLoggedIn = isLoggedIn,
                                 isBanned = isBanned,
                                 currentUserRole = currentUserRole,
+                                onAuthorClick = { username -> onNavigateToProfile(username) },
                                 onReport = {
                                     viewModel.targetReviewId.value = review.id
                                     viewModel.showReportModal.value = true
                                 },
                                 onBan = {
-                                    viewModel.targetUserId.value = review.id // Fallback ID mapping
+                                    viewModel.targetUserId.value = 0L
                                     viewModel.targetUsername.value = review.authorUsername ?: "User"
                                     viewModel.showBanModal.value = true
                                 }
@@ -211,6 +271,33 @@ fun GameDetailScreen(
                     }
                 }
             }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        // --- MODALS ---
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                containerColor = Color(0xFF222222),
+                title = { Text("Delete Review", color = Color.White) },
+                text = { Text("Are you sure you want to permanently delete this review?", color = Color.LightGray) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteReview(gameId)
+                            showDeleteConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) { Text("Delete", color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", color = Color.Gray) }
+                }
+            )
         }
 
         if (viewModel.showReviewModal.collectAsState().value) {
@@ -232,10 +319,15 @@ fun ReviewCard(
     isLoggedIn: Boolean,
     isBanned: Boolean,
     currentUserRole: Long,
+    onAuthorClick: (String) -> Unit,
     onReport: () -> Unit,
     onBan: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp).background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp)).padding(16.dp)) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val commentText = review.comment ?: ""
+    val isLongText = commentText.length > 150
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp)).padding(16.dp).animateContentSize()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val sColor = getScoreColor(review.score ?: 0, isCritic)
@@ -244,20 +336,47 @@ fun ReviewCard(
                     Text(review.score.toString(), color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(review.authorUsername ?: "Anonymous", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+
+                Text(
+                    text = review.authorUsername ?: "Anonymous",
+                    color = Color(0xFF2D9CDB),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.clickable {
+                        review.authorUsername?.let { onAuthorClick(it) }
+                    }
+                )
             }
 
-            // Conditional Moderation Buttons
             if (isLoggedIn && currentUserRole in 1L..3L) {
                 Button(onClick = onBan, colors = ButtonDefaults.buttonColors(containerColor = Color.Red), contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    Text("BAN USER", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("BAN", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             } else if (isLoggedIn && !isBanned) {
                 IconButton(onClick = onReport) { Icon(Icons.Default.Warning, contentDescription = "Report", tint = Color.Gray) }
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text(review.comment ?: "", color = Color.LightGray, fontSize = 14.sp)
+
+        Text(
+            text = commentText,
+            color = Color.LightGray,
+            fontSize = 14.sp,
+            maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (isLongText) {
+            Text(
+                text = if (isExpanded) "Show Less" else "Read More",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable { isExpanded = !isExpanded }
+            )
+        }
     }
 }
 
@@ -271,75 +390,171 @@ fun getScoreColor(score: Int, isCritic: Boolean): Color {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailViewModel) {
-    var text by remember { mutableStateOf(viewModel.draftText.value) }
-    var scoreStr by remember { mutableStateOf(viewModel.draftScore.value.toString().takeIf { it != "0" } ?: "") }
+    val currentDraftText by viewModel.draftText.collectAsState()
+    val currentDraftScore by viewModel.draftScore.collectAsState()
+    val existingId by viewModel.existingReviewId.collectAsState()
+
+    var text by remember { mutableStateOf(currentDraftText) }
+
+    val minScore = 1f
+    val maxScore = if (isCritic) 100f else 10f
+
+    // Fallback to center of slider if editing a draft that is somehow 0
+    val initialScore = currentDraftScore.toFloat().takeIf { it > 0f } ?: (maxScore / 2f)
+    var sliderValue by remember { mutableFloatStateOf(initialScore.coerceIn(minScore, maxScore)) }
+
+    val dynamicColor = getScoreColor(sliderValue.toInt(), isCritic)
+    var showPostConfirm by remember { mutableStateOf(false) }
+
+    if (showPostConfirm) {
+        AlertDialog(
+            onDismissRequest = { showPostConfirm = false },
+            containerColor = Color(0xFF222222),
+            title = { Text(if (existingId != null) "Update Review" else "Post Review", color = Color.White) },
+            text = { Text("Are you ready to submit this review?", color = Color.LightGray) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPostConfirm = false
+                        viewModel.saveDraft(gameId, text, sliderValue.toInt())
+                        viewModel.submitReview(gameId)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF55C72E))
+                ) { Text("Confirm", color = Color.Black) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPostConfirm = false }) { Text("Wait, go back", color = Color.Gray) }
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = {
-            viewModel.saveDraft(gameId, text, scoreStr.toIntOrNull() ?: 0)
+            viewModel.saveDraft(gameId, text, sliderValue.toInt())
             viewModel.showReviewModal.value = false
         },
         containerColor = Color(0xFF222222),
-        title = { Text("Write Review", color = Color.White) },
+        title = { Text(if (existingId != null) "Edit Review" else "Write Review", color = Color.White) },
         text = {
             Column {
-                OutlinedTextField(
-                    value = scoreStr,
-                    onValueChange = { scoreStr = it },
-                    label = { Text("Score (1-${if(isCritic) 100 else 10})", color = Color.Gray) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Score:", color = Color.White, fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.background(dynamicColor, RoundedCornerShape(4.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        Text("${sliderValue.toInt()}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // --- NEW: Custom Sleek Line Slider ---
+                Slider(
+                    value = sliderValue,
+                    onValueChange = {
+                        // Snap smoothly without drawing UI tick marks!
+                        sliderValue = it.roundToInt().toFloat()
+                    },
+                    valueRange = minScore..maxScore,
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = dynamicColor,
+                        inactiveTrackColor = Color(0xFF333333)
+                    ),
+                    thumb = {
+                        // Custom vertical line thumb instead of a giant circle
+                        Box(
+                            modifier = Modifier
+                                .width(6.dp)
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color.White)
+                        )
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = {
+                        if (it.length <= 2000) text = it
+                    },
                     label = { Text("Your thoughts...", color = Color.Gray) },
                     modifier = Modifier.fillMaxWidth().height(150.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    supportingText = {
+                        Text("${text.length} / 2000", color = if (text.length >= 2000) Color.Red else Color.Gray)
+                    }
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    viewModel.saveDraft(gameId, text, scoreStr.toIntOrNull() ?: 0)
-                    viewModel.submitReview(gameId)
-                },
+                onClick = { showPostConfirm = true },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF55C72E))
-            ) { Text("Post", color = Color.Black) }
+            ) { Text("Review", color = Color.Black) }
         }
     )
 }
 
 @Composable
 fun ReportModal(viewModel: GameDetailViewModel) {
-    var reason by remember { mutableStateOf("") }
+    val predefinedReasons = listOf("Spam", "Offensive Language", "Spoilers", "Harassment", "Irrelevant")
+    var selectedReasons by remember { mutableStateOf(setOf<String>()) }
+
     AlertDialog(
         onDismissRequest = { viewModel.showReportModal.value = false },
         containerColor = Color(0xFF222222),
         title = { Text("Report Review", color = Color.White) },
         text = {
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { reason = it },
-                label = { Text("Reason for report...", color = Color.Gray) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
-            )
+            Column {
+                Text("Please select one or more reasons:", color = Color.Gray, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                predefinedReasons.forEach { reason ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedReasons = if (selectedReasons.contains(reason)) {
+                                    selectedReasons - reason
+                                } else {
+                                    selectedReasons + reason
+                                }
+                            }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = selectedReasons.contains(reason),
+                            onCheckedChange = null,
+                            colors = CheckboxDefaults.colors(checkedColor = Color.Red, uncheckedColor = Color.Gray)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(reason, color = Color.White, fontSize = 14.sp)
+                    }
+                }
+            }
         },
         confirmButton = {
-            Button(onClick = { viewModel.submitReport(reason) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
-                Text("Submit Report")
+            Button(
+                onClick = { viewModel.submitReport(selectedReasons.toList()) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                enabled = selectedReasons.isNotEmpty() // Disable if nothing selected!
+            ) {
+                Text("Submit Report", color = Color.White)
             }
+        },
+        dismissButton = {
+            TextButton(onClick = { viewModel.showReportModal.value = false }) { Text("Cancel", color = Color.Gray) }
         }
     )
 }
 
 @Composable
 fun BanModal(viewModel: GameDetailViewModel) {
-    val username = viewModel.targetUsername.collectAsState().value
+    val username by viewModel.targetUsername.collectAsState()
     var selectedDuration by remember { mutableStateOf<Int?>(1) }
     var banReason by remember { mutableStateOf("") }
 

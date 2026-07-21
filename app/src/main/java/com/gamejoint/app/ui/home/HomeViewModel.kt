@@ -1,20 +1,22 @@
 package com.gamejoint.app.ui.home
 
+import android.app.Application
+import android.util.Base64
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamejoint.app.data.local.SessionManager
 import com.gamejoint.app.data.model.FeaturedGameResponse
 import com.gamejoint.app.data.model.GameSummary
 import com.gamejoint.app.data.network.ApiClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
+import org.json.JSONObject
 
-// 1. The State Object holds all 4 rows of data
 data class HomeData(
     val featured: List<FeaturedGameResponse> = emptyList(),
     val trending: List<GameSummary> = emptyList(),
@@ -28,13 +30,59 @@ sealed class HomeState {
     data class Error(val message: String) : HomeState()
 }
 
-class HomeViewModel : ViewModel() {
+// CHANGED: Now an AndroidViewModel so we can access DataStore!
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val sessionManager = SessionManager(application)
 
     private val _uiState = MutableStateFlow<HomeState>(HomeState.Loading)
     val uiState: StateFlow<HomeState> = _uiState.asStateFlow()
 
+    // --- BAN POPUP STATES ---
+    val showBanPopup = MutableStateFlow(false)
+    val banExpiration = MutableStateFlow<String?>("Permanent")
+    private var hasShownPopupThisSession = false // Prevents spamming the user every time they go home
+
     init {
         fetchHomeData()
+        observeSession()
+    }
+
+    private fun observeSession() {
+        viewModelScope.launch {
+            sessionManager.jwtTokenFlow.collect { token ->
+                if (!token.isNullOrEmpty() && !hasShownPopupThisSession) {
+                    checkIfBanned(token)
+                }
+            }
+        }
+    }
+
+    private fun checkIfBanned(token: String) {
+        try {
+            val parts = token.split(".")
+            if (parts.size >= 2) {
+                val payloadJson = String(Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP))
+                val json = JSONObject(payloadJson)
+
+                if (json.has("isBanned") && json.getBoolean("isBanned")) {
+                    // Try to grab the expiration date if your backend provides it in the token!
+                    if (json.has("banExpiration")) {
+                        banExpiration.value = json.getString("banExpiration")
+                    } else {
+                        banExpiration.value = "Permanent"
+                    }
+                    showBanPopup.value = true
+                    hasShownPopupThisSession = true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AUTH", "Failed to parse token for ban status", e)
+        }
+    }
+
+    fun dismissBanPopup() {
+        showBanPopup.value = false
     }
 
     private fun fetchHomeData() {
@@ -42,41 +90,19 @@ class HomeViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // By putting a try/catch INSIDE the async block,
-                // a failure will just return an empty list instead of crashing the app!
                 val featuredDef = async(Dispatchers.IO) {
-                    try {
-                        ApiClient.gameService.getFeaturedGames().execute().body() ?: emptyList()
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
+                    try { ApiClient.gameService.getFeaturedGames().execute().body() ?: emptyList() } catch (e: Exception) { emptyList() }
                 }
                 val trendingDef = async(Dispatchers.IO) {
-                    try {
-                        ApiClient.gameService.getTrendingGames(0, 15).execute().body()?.content ?: emptyList()
-                    } catch (e: Exception) {
-                        Log.e("API_DEBUG", "Trending Failed!", e) // <--- ADD THIS
-                        emptyList()
-                    }
+                    try { ApiClient.gameService.getTrendingGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
                 }
-
                 val newReleasesDef = async(Dispatchers.IO) {
-                    try {
-                        ApiClient.gameService.getNewReleases(0, 15).execute().body()?.content ?: emptyList()
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
+                    try { ApiClient.gameService.getNewReleases(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
                 }
-
                 val topRatedDef = async(Dispatchers.IO) {
-                    try {
-                        ApiClient.gameService.getTopRatedGames(0, 15).execute().body()?.content ?: emptyList()
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
+                    try { ApiClient.gameService.getTopRatedGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
                 }
 
-                // Wait for all 4 background tasks to finish downloading (or fail safely)
                 val data = HomeData(
                     featured = featuredDef.await(),
                     trending = trendingDef.await(),
@@ -84,7 +110,6 @@ class HomeViewModel : ViewModel() {
                     topRated = topRatedDef.await()
                 )
 
-                // If ALL of them failed, show a user-friendly error
                 if (data.featured.isEmpty() && data.trending.isEmpty() && data.newReleases.isEmpty() && data.topRated.isEmpty()) {
                     _uiState.value = HomeState.Error("Could not connect to the game server.")
                 } else {
@@ -92,7 +117,6 @@ class HomeViewModel : ViewModel() {
                 }
 
             } catch (e: Exception) {
-                // This will now only trigger if something catastrophic happens
                 _uiState.value = HomeState.Error("Critical Error: ${e.localizedMessage}")
             }
         }

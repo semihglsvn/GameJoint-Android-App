@@ -10,17 +10,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 sealed class LoginState {
     object Idle : LoginState()
     object Loading : LoginState()
-
-    // UPDATE: Success now holds the token to be saved by the UI layer
     data class Success(val token: String) : LoginState()
-
-    // NEW: If the API blocks them for being unverified, we capture the email
     data class Unverified(val email: String) : LoginState()
-
     data class Error(val message: String) : LoginState()
 }
 
@@ -37,7 +33,7 @@ class LoginViewModel : ViewModel() {
                 val request = UserLoginRequest(
                     usernameOrEmail = usernameOrEmail,
                     password = pass,
-                    cfTurnstileResponse = "mobile-bypass" // Use the Turnstile bypass!
+                    cfTurnstileResponse = "mobile-bypass"
                 )
 
                 val response = withContext(Dispatchers.IO) {
@@ -45,21 +41,38 @@ class LoginViewModel : ViewModel() {
                 }
 
                 if (response.isSuccessful) {
-                    val tokenResponse = response.body()
-                    val token = tokenResponse?.token
+                    val token = response.body()?.token
                     if (token != null) {
-                        // Pass the token to the UI so DataStore can save it
                         _uiState.value = LoginState.Success(token)
                     } else {
-                        _uiState.value = LoginState.Error("Server returned empty token.")
+                        _uiState.value = LoginState.Error("Server returned an empty token.")
                     }
                 } else {
-                    // Check if the backend specifically blocked them for being unverified
-                    val errorBody = response.errorBody()?.string() ?: ""
-                    if (errorBody.contains("not verified", ignoreCase = true)) {
+                    val errorString = response.errorBody()?.string() ?: ""
+
+                    if (errorString.contains("not verified", ignoreCase = true)) {
                         _uiState.value = LoginState.Unverified(usernameOrEmail)
                     } else {
-                        _uiState.value = LoginState.Error("Login failed: ${response.code()}")
+                        // --- NEW: Parse the exact Spring Boot error message! ---
+                        var displayMessage = "Login failed (Error ${response.code()})"
+                        try {
+                            // If it's a JSON response, extract the "message" field
+                            if (errorString.startsWith("{")) {
+                                val json = JSONObject(errorString)
+                                if (json.has("message")) {
+                                    displayMessage = json.getString("message")
+                                } else if (json.has("error")) {
+                                    displayMessage = json.getString("error")
+                                }
+                            } else if (errorString.isNotBlank()) {
+                                // If the backend sent plain text, just use that
+                                displayMessage = errorString
+                            }
+                        } catch (e: Exception) {
+                            if (errorString.isNotBlank()) displayMessage = errorString
+                        }
+
+                        _uiState.value = LoginState.Error(displayMessage)
                     }
                 }
             } catch (e: Exception) {
@@ -67,4 +80,4 @@ class LoginViewModel : ViewModel() {
             }
         }
     }
-}
+}   

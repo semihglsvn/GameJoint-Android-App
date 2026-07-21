@@ -23,22 +23,45 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.gamejoint.app.data.model.FeaturedGameResponse
 import com.gamejoint.app.data.model.GameSummary
 
-// Match the dark theme from the web exactly
 val SurfaceDark = Color(0xFF222222)
 val MetascoreGreen = Color(0xFF55C72E)
 val MetascoreYellow = Color(0xFFD4A017)
 val MetascoreRed = Color(0xFFD32F2F)
-val MetascoreGray = Color(0xFF555555) // For TBD
+val MetascoreGray = Color(0xFF555555)
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
-    onGameClick: (Long) -> Unit // Navigates to Game Details later
+    onGameClick: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val showBanPopup by viewModel.showBanPopup.collectAsState()
+    val banExpiration by viewModel.banExpiration.collectAsState()
+
+    // --- NEW: THE BAN NOTIFICATION MODAL ---
+    if (showBanPopup) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissBanPopup() },
+            containerColor = SurfaceDark,
+            title = { Text("Account Restricted", color = MetascoreRed, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Your account has been reviewed and restricted by a human moderator for violating our community guidelines.", color = Color.White)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("There is no automated system involved, and this decision is final. No appeals will be accepted at this time.", color = Color.LightGray, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Restriction Ends: ${banExpiration ?: "Permanent"}", color = MetascoreRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.dismissBanPopup() }, colors = ButtonDefaults.buttonColors(containerColor = MetascoreRed)) {
+                    Text("I Understand", color = Color.White)
+                }
+            }
+        )
+    }
 
     when (uiState) {
         is HomeState.Loading -> {
@@ -57,25 +80,19 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF181818)) // Outer background
+                    .background(Color(0xFF181818))
                     .padding(vertical = 16.dp)
             ) {
-
-                // 1. Featured Games
                 if (data.featured.isNotEmpty()) {
                     item { SectionTitle("Featured Games") }
                     item {
-// We must explicitly add horizontalArrangement here!
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(data.featured) { game ->
-                                // For Featured, we use the custom banner if it exists!
                                 val imageUrl = game.customBanner ?: game.coverImage ?: ""
-// The new fields we manually added to FeaturedGameResponse.kt!
                                 val score = game.metascore ?: 0
-                                // Just like we did for the other sliders, take up to 2 genres
                                 val genreList = game.genres?.take(2) ?: emptyList()
 
                                 GameCard(
@@ -90,19 +107,16 @@ fun HomeScreen(
                     }
                 }
 
-                // 2. Trending
                 if (data.trending.isNotEmpty()) {
                     item { SectionTitle("Trending") }
                     item { HorizontalGameCarousel(data.trending, onGameClick) }
                 }
 
-                // 3. New Releases
                 if (data.newReleases.isNotEmpty()) {
                     item { SectionTitle("New Releases") }
                     item { HorizontalGameCarousel(data.newReleases, onGameClick) }
                 }
 
-                // 4. Top Rated
                 if (data.topRated.isNotEmpty()) {
                     item { SectionTitle("Top Rated") }
                     item { HorizontalGameCarousel(data.topRated, onGameClick) }
@@ -130,10 +144,10 @@ fun HorizontalGameCarousel(games: List<GameSummary>, onGameClick: (Long) -> Unit
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(games) { game ->
-            // The generator already made it a List! Just take the first 2.
-            val genreList = game.genres?.take(2) ?: emptyList()
+            // FIXED: Removed the genreNames check. GameSummary exclusively uses genres!
+            val activeGenres = game.genres ?: emptyList()
+            val genreList = activeGenres.take(2)
 
-            // Also adding a safe fallback for game.id just in case it's null
             GameCard(
                 title = game.title ?: "Unknown",
                 imageUrl = game.coverImage ?: "",
@@ -154,26 +168,20 @@ fun GameCard(
 ) {
     Card(
         modifier = Modifier
-            .width(260.dp) // Matches the wide aspect ratio in your screenshot
+            .width(260.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceDark)
     ) {
         Column {
-            // 1. Game Image
             AsyncImage(
                 model = imageUrl,
                 contentDescription = "$title Cover",
-                contentScale = ContentScale.Crop, // Crops image to fit the box cleanly
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(140.dp)
             )
 
-            // 2. Info Container
             Column(modifier = Modifier.padding(16.dp)) {
-
-                // Title
                 Text(
                     text = title,
                     color = Color.White,
@@ -182,10 +190,8 @@ fun GameCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Genres/Platform Chips
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (genres.isEmpty()) {
                         GenreChip("N/A")
@@ -200,19 +206,12 @@ fun GameCard(
                 HorizontalDivider(color = Color(0xFF444444), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Footer: METASCORE and Score Box
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "METASCORE",
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
+                    Text(text = "METASCORE", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     ScoreBox(score)
                 }
             }
@@ -222,24 +221,15 @@ fun GameCard(
 
 @Composable
 fun GenreChip(text: String) {
-    Box(
-        modifier = Modifier
-            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text = text.uppercase(),
-            color = Color.LightGray,
-            fontSize = 10.sp
-        )
+    Box(modifier = Modifier.border(1.dp, Color.Gray, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+        Text(text = text.uppercase(), color = Color.LightGray, fontSize = 10.sp)
     }
 }
 
 @Composable
 fun ScoreBox(score: Int) {
-    // Determine color based on Metacritic standards
     val scoreColor = when {
-        score == 0 -> MetascoreGray // TBD
+        score == 0 -> MetascoreGray
         score >= 75 -> MetascoreGreen
         score >= 50 -> MetascoreYellow
         else -> MetascoreRed
@@ -254,11 +244,6 @@ fun ScoreBox(score: Int) {
             .padding(horizontal = 8.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = displayScore,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-        )
+        Text(text = displayScore, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
