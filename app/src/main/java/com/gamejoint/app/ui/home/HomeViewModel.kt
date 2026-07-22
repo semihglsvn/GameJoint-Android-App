@@ -85,7 +85,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         showBanPopup.value = false
     }
 
-    private fun fetchHomeData() {
+     fun fetchHomeData() {
         _uiState.value = HomeState.Loading
 
         viewModelScope.launch {

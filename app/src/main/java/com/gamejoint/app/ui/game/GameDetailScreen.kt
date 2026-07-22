@@ -94,7 +94,6 @@ fun GameDetailScreen(
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                // Fallback to either list format provided by API
                                 val activeGenres = game.genreNames?.toList() ?: game.genres ?: emptyList()
                                 activeGenres.take(3).forEach { genre ->
                                     Box(modifier = Modifier.background(Color(0xFF2D9CDB), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -134,13 +133,12 @@ fun GameDetailScreen(
                         HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 16.dp, horizontal = 16.dp))
                     }
 
-                    // 4. ABOUT (NOW WITH METADATA)
+                    // 4. ABOUT
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).animateContentSize()) {
                             Text("About", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // --- NEW: Dynamic Game Metadata ---
                             val platformsStr = game.platformNames?.joinToString(", ") ?: game.platforms?.joinToString(", ")
 
                             val metaDataMap = mapOf(
@@ -327,7 +325,14 @@ fun ReviewCard(
     val commentText = review.comment ?: ""
     val isLongText = commentText.length > 150
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp)).padding(16.dp).animateContentSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
+            .padding(16.dp)
+            .animateContentSize()
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val sColor = getScoreColor(review.score ?: 0, isCritic)
@@ -358,12 +363,14 @@ fun ReviewCard(
         }
         Spacer(modifier = Modifier.height(12.dp))
 
+        // --- FIXED: ADDED MINIMUM HEIGHT HERE ---
         Text(
             text = commentText,
             color = Color.LightGray,
             fontSize = 14.sp,
             maxLines = if (isExpanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.defaultMinSize(minHeight = 80.dp) // Ensures short reviews don't look squished!
         )
 
         if (isLongText) {
@@ -402,7 +409,6 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
     val minScore = 1f
     val maxScore = if (isCritic) 100f else 10f
 
-    // Fallback to center of slider if editing a draft that is somehow 0
     val initialScore = currentDraftScore.toFloat().takeIf { it > 0f } ?: (maxScore / 2f)
     var sliderValue by remember { mutableFloatStateOf(initialScore.coerceIn(minScore, maxScore)) }
 
@@ -449,11 +455,9 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- NEW: Custom Sleek Line Slider ---
                 Slider(
                     value = sliderValue,
                     onValueChange = {
-                        // Snap smoothly without drawing UI tick marks!
                         sliderValue = it.roundToInt().toFloat()
                     },
                     valueRange = minScore..maxScore,
@@ -462,7 +466,6 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
                         inactiveTrackColor = Color(0xFF333333)
                     ),
                     thumb = {
-                        // Custom vertical line thumb instead of a giant circle
                         Box(
                             modifier = Modifier
                                 .width(6.dp)
@@ -541,7 +544,7 @@ fun ReportModal(viewModel: GameDetailViewModel) {
             Button(
                 onClick = { viewModel.submitReport(selectedReasons.toList()) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                enabled = selectedReasons.isNotEmpty() // Disable if nothing selected!
+                enabled = selectedReasons.isNotEmpty()
             ) {
                 Text("Submit Report", color = Color.White)
             }

@@ -10,6 +10,7 @@ import com.gamejoint.app.data.local.SessionManager
 import com.gamejoint.app.data.model.*
 import com.gamejoint.app.data.network.ApiClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -101,13 +102,23 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
         } catch (e: Exception) {}
     }
 
+    // --- FIXED: FIRE NETWORK REQUESTS IN PARALLEL ---
     fun loadGame(gameId: Long) {
         _uiState.value = GameDetailState.Loading
         loadDraft(gameId)
 
         viewModelScope.launch {
             try {
-                val gameResponse = withContext(Dispatchers.IO) { ApiClient.gameService.getGameById(gameId).execute() }
+                // Fire all three network requests simultaneously
+                val gameDef = async(Dispatchers.IO) { ApiClient.gameService.getGameById(gameId).execute() }
+                val userRevDef = async(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 5L, size = 50).execute() }
+                val criticRevDef = async(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 4L, size = 50).execute() }
+
+                // Suspend and wait for all three to return
+                val gameResponse = gameDef.await()
+                val userRevResponse = userRevDef.await()
+                val criticRevResponse = criticRevDef.await()
+
                 if (gameResponse.isSuccessful && gameResponse.body() != null) {
                     _uiState.value = GameDetailState.Success(gameResponse.body()!!)
                 } else {
@@ -115,7 +126,6 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
 
-                val userRevResponse = withContext(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 5L, size = 50).execute() }
                 if (userRevResponse.isSuccessful) {
                     val reviews = userRevResponse.body()?.content ?: emptyList()
                     userReviews.value = reviews
@@ -123,7 +133,6 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
                     detectExistingUserReview(reviews)
                 }
 
-                val criticRevResponse = withContext(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 4L, size = 50).execute() }
                 if (criticRevResponse.isSuccessful) {
                     criticReviews.value = criticRevResponse.body()?.content ?: emptyList()
                 }
@@ -170,10 +179,9 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    // --- HELPER TO CHECK BANS DYNAMICALLY ---
     private fun handleNetworkError(errorBody: String?, code: Int): String {
         if (errorBody?.contains("restricted", ignoreCase = true) == true || code == 403) {
-            isBanned.value = true // Instantly locks down the UI!
+            isBanned.value = true
             return "Action blocked: Your account is restricted."
         }
         return "Action failed (Error $code)"

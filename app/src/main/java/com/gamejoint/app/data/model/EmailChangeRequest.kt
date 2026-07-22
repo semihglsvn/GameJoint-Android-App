@@ -23,27 +23,20 @@
 
 package com.gamejoint.app.data.model
 
-
 import com.google.gson.annotations.SerializedName
 
 /**
- * 
  *
- * @param username 
- * @param dob 
+ *
+ * @param otpCode The 6-digit code sent to the user's email
+ * @param newEmail The user's new email address
  */
+data class EmailChangeRequest (
 
+    @SerializedName("otpCode")
+    val otpCode: kotlin.String? = null,
 
-data class UserProfileUpdateRequest (
+    @SerializedName("newEmail")
+    val newEmail: kotlin.String? = null
 
-    @SerializedName("username")
-    val username: kotlin.String? = null,
-
-    @SerializedName("dob")
-    val dob: java.time.LocalDate? = null
-
-) {
-
-
-}
-
+)

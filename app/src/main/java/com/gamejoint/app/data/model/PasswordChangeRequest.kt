@@ -23,27 +23,20 @@
 
 package com.gamejoint.app.data.model
 
-
 import com.google.gson.annotations.SerializedName
 
 /**
- * 
  *
- * @param currentPassword 
- * @param newPassword 
+ *
+ * @param otpCode The 6-digit code sent to the user's email
+ * @param newPassword The newly chosen password
  */
-
-
 data class PasswordChangeRequest (
 
-    @SerializedName("currentPassword")
-    val currentPassword: kotlin.String? = null,
+    @SerializedName("otpCode")
+    val otpCode: kotlin.String? = null,
 
     @SerializedName("newPassword")
     val newPassword: kotlin.String? = null
 
-) {
-
-
-}
-
+)

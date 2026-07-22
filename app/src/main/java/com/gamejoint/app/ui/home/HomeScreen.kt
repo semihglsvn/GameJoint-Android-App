@@ -70,8 +70,19 @@ fun HomeScreen(
             }
         }
         is HomeState.Error -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text((uiState as HomeState.Error).message, color = Color.Red)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { viewModel.fetchHomeData() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MetascoreGreen)
+                ) {
+                    Text("Tap to Retry", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
         }
         is HomeState.Success -> {

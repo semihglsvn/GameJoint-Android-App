@@ -1,65 +1,97 @@
 package com.gamejoint.app
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.gamejoint.app.data.network.ApiClient
 import com.gamejoint.app.ui.MainScaffold
 import com.gamejoint.app.ui.auth.ForgotScreen
 import com.gamejoint.app.ui.auth.LoginScreen
+import com.gamejoint.app.ui.auth.NewPasswordScreen
 import com.gamejoint.app.ui.auth.RegisterScreen
+import com.gamejoint.app.ui.auth.VerificationScreen
+import com.gamejoint.app.ui.game.GameDetailScreen
 import com.gamejoint.app.ui.home.HomeScreen
+import com.gamejoint.app.ui.search.SearchScreen
+import com.gamejoint.app.ui.settings.SettingsScreen
 import com.gamejoint.app.ui.theme.Gamejoint_appTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+// A simple helper to manage our settings across the app
+object SettingsHelper {
+    const val PREFS_NAME = "gamejoint_settings"
+    const val KEY_CACHE_MB = "disk_cache_mb"
+    const val KEY_THEME = "app_theme" // 0 = System, 1 = Light, 2 = Dark
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Initialize the strict Coil Cache architecture
+        // 1. Read settings from SharedPreferences
+        val prefs = getSharedPreferences(SettingsHelper.PREFS_NAME, Context.MODE_PRIVATE)
+        val cacheSizeMb = prefs.getLong(SettingsHelper.KEY_CACHE_MB, 50L) // Default 50MB!
+
+        // 2. Initialize the strict Coil Cache architecture with the dynamic variable
         val imageLoader = coil.ImageLoader.Builder(this)
             .memoryCache {
                 coil.memory.MemoryCache.Builder(this)
-                    .maxSizePercent(0.10) // 10% of available RAM
+                    .maxSizePercent(0.10)
                     .build()
             }
             .diskCache {
                 coil.disk.DiskCache.Builder()
                     .directory(this.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50L * 1024 * 1024) // 50MB limit
+                    .maxSizeBytes(cacheSizeMb * 1024 * 1024) // Dynamic size here!
                     .build()
             }
             .crossfade(true)
             .build()
 
-        // 2. Set it globally
-        coil.Coil.setImageLoader(imageLoader)
+        try {
+            coil.Coil.setImageLoader(imageLoader)
+        } catch (e: Exception) {
+        }
 
         setContent {
-            Gamejoint_appTheme {
+            // Theme observer so it updates instantly when changed in Settings
+            var themeMode by remember { mutableIntStateOf(prefs.getInt(SettingsHelper.KEY_THEME, 0)) }
+
+            val isDark = when (themeMode) {
+                1 -> false // Force Light
+                2 -> true  // Force Dark
+                else -> isSystemInDarkTheme() // System Default
+            }
+
+            Gamejoint_appTheme(darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    GameJointNavigationApp()
+                    GameJointNavigationApp(
+                        onThemeChanged = { newTheme -> themeMode = newTheme }
+                    )
                 }
             }
         }
@@ -67,85 +99,81 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GameJointNavigationApp() {
-    // 1. Keep track of whether Retrofit is built yet
+fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
     var isApiReady by remember { mutableStateOf(false) }
 
-    // Grab the context and create the SessionManager
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessionManager = remember { com.gamejoint.app.data.local.SessionManager(context) }
-
-    // Coroutine Scope for the Logout button
     val coroutineScope = rememberCoroutineScope()
 
-    // Continuously observe the token from DataStore
     val currentToken by sessionManager.jwtTokenFlow.collectAsState(initial = null)
     val isUserLoggedIn = !currentToken.isNullOrEmpty()
 
-    // 2. This Coroutine runs exactly once when the app opens
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            try {
-                val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt"
+            var attempts = 0
+            var success = false
+            var fetchedUrl = ""
 
-                val request = Request.Builder().url(gistUrl).build()
-                val response = OkHttpClient().newCall(request).execute()
+            // Gist retry loop to survive initial wake-up lag
+            while (attempts < 5 && !success) {
+                try {
+                    val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt"
+                    val request = Request.Builder().url(gistUrl).build()
+                    val response = OkHttpClient().newCall(request).execute()
 
-                val fetchedUrl = response.body?.string()?.trim()
-                if (!fetchedUrl.isNullOrEmpty() && fetchedUrl.startsWith("http")) {
-                    ApiClient.initialize(fetchedUrl, sessionManager)
-                } else {
-                    ApiClient.initialize("http://10.0.2.2:8080/", sessionManager)
+                    val responseBody = response.body?.string()?.trim()
+                    if (!responseBody.isNullOrEmpty() && responseBody.startsWith("http")) {
+                        fetchedUrl = responseBody
+                        success = true
+                    }
+                } catch (e: Exception) {
+                    attempts++
+                    delay(2000)
                 }
-            } catch (e: Exception) {
-                ApiClient.initialize("http://10.0.2.2:8080/", sessionManager)
             }
+
+            val finalUrl = if (success) fetchedUrl else "http://localhost/"
+            ApiClient.initialize(finalUrl, sessionManager)
+
             isApiReady = true
         }
     }
 
-    // 3. The UI Logic
     if (!isApiReady) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
     } else {
-        // The API is ready!
         val navController = rememberNavController()
 
-        // 4. Wrap the entire App inside the MainScaffold
         MainScaffold(
-            isLoggedIn = isUserLoggedIn, // Dynamically reacts to the DataStore flow!
+            isLoggedIn = isUserLoggedIn,
             onNavigateToHome = {
                 navController.navigate("home") {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                     launchSingleTop = true
                 }
             },
             onNavigateToLogin = { navController.navigate("login") },
             onNavigateToRegister = { navController.navigate("register") },
             onNavigateToProfile = { /* TODO */ },
-
             onLogout = {
                 coroutineScope.launch {
                     sessionManager.clearSession()
-                    // Kick them back to home upon logout
                     navController.navigate("home") {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
                     }
                 }
             },
-
             onNavigateToSettings = {
                 navController.navigate("settings")
             },
-
             onSearchSubmit = { query ->
                 navController.navigate("search?query=$query")
             }
         ) { innerPadding ->
 
-            // 5. The NavHost sits inside the Scaffold
             NavHost(
                 navController = navController,
                 startDestination = "home",
@@ -185,14 +213,14 @@ fun GameJointNavigationApp() {
                 composable(
                     route = "verify/{email}/{isPasswordReset}",
                     arguments = listOf(
-                        androidx.navigation.navArgument("email") { type = androidx.navigation.NavType.StringType },
-                        androidx.navigation.navArgument("isPasswordReset") { type = androidx.navigation.NavType.BoolType }
+                        navArgument("email") { type = NavType.StringType },
+                        navArgument("isPasswordReset") { type = NavType.BoolType }
                     )
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     val isPasswordReset = backStackEntry.arguments?.getBoolean("isPasswordReset") ?: false
 
-                    com.gamejoint.app.ui.auth.VerificationScreen(
+                    VerificationScreen(
                         email = email,
                         isPasswordReset = isPasswordReset,
                         onNavigateToLogin = {
@@ -207,14 +235,14 @@ fun GameJointNavigationApp() {
                 composable(
                     route = "reset_password/{email}/{otpCode}",
                     arguments = listOf(
-                        androidx.navigation.navArgument("email") { type = androidx.navigation.NavType.StringType },
-                        androidx.navigation.navArgument("otpCode") { type = androidx.navigation.NavType.StringType }
+                        navArgument("email") { type = NavType.StringType },
+                        navArgument("otpCode") { type = NavType.StringType }
                     )
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     val otpCode = backStackEntry.arguments?.getString("otpCode") ?: ""
 
-                    com.gamejoint.app.ui.auth.NewPasswordScreen(
+                    NewPasswordScreen(
                         email = email,
                         otpCode = otpCode,
                         onNavigateToLogin = {
@@ -233,13 +261,13 @@ fun GameJointNavigationApp() {
 
                 composable(
                     route = "search?query={query}",
-                    arguments = listOf(androidx.navigation.navArgument("query") {
-                        type = androidx.navigation.NavType.StringType
+                    arguments = listOf(navArgument("query") {
+                        type = NavType.StringType
                         defaultValue = ""
                     })
                 ) { backStackEntry ->
                     val query = backStackEntry.arguments?.getString("query") ?: ""
-                    com.gamejoint.app.ui.search.SearchScreen(
+                    SearchScreen(
                         initialQuery = query,
                         onGameClick = { gameId ->
                             navController.navigate("gameDetails/$gameId")
@@ -249,18 +277,26 @@ fun GameJointNavigationApp() {
 
                 composable(
                     route = "gameDetails/{gameId}",
-                    arguments = listOf(androidx.navigation.navArgument("gameId") {
-                        type = androidx.navigation.NavType.LongType
+                    arguments = listOf(navArgument("gameId") {
+                        type = NavType.LongType
                     })
                 ) { backStackEntry ->
                     val gameId = backStackEntry.arguments?.getLong("gameId") ?: 0L
-                    com.gamejoint.app.ui.game.GameDetailScreen(gameId = gameId)
+                    GameDetailScreen(gameId = gameId)
                 }
 
                 composable("settings") {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Settings Coming Soon...", color = Color.White)
-                    }
+                    SettingsScreen(
+                        onThemeChanged = onThemeChanged,
+                        onLogout = {
+                            coroutineScope.launch {
+                                sessionManager.clearSession()
+                                navController.navigate("home") {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }

@@ -23,23 +23,16 @@
 
 package com.gamejoint.app.data.model
 
-
 import com.google.gson.annotations.SerializedName
 
 /**
- * 
  *
- * @param currentPassword 
+ *
+ * @param otpCode The 6-digit code sent to the user's email
  */
-
-
 data class AccountDeleteRequest (
 
-    @SerializedName("currentPassword")
-    val currentPassword: kotlin.String? = null
+    @SerializedName("otpCode")
+    val otpCode: kotlin.String? = null
 
-) {
-
-
-}
-
+)
