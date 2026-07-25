@@ -9,9 +9,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,13 +23,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.gamejoint.app.data.model.GameSummary
+import kotlinx.coroutines.launch
 
 val SurfaceDark = Color(0xFF222222)
-val MetascoreGreen = Color(0xFF55C72E)
-val MetascoreYellow = Color(0xFFD4A017)
-val MetascoreRed = Color(0xFFD32F2F)
-val MetascoreGray = Color(0xFF555555)
+// REBRAND: Fully transitioned to JointScore naming
+val JointScoreGreen = Color(0xFF55C72E)
+val JointScoreYellow = Color(0xFFD4A017)
+val JointScoreRed = Color(0xFFD32F2F)
+val JointScoreGray = Color(0xFF555555)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
@@ -40,97 +42,110 @@ fun HomeScreen(
     val showBanPopup by viewModel.showBanPopup.collectAsState()
     val banExpiration by viewModel.banExpiration.collectAsState()
 
-    // --- NEW: THE BAN NOTIFICATION MODAL ---
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
     if (showBanPopup) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissBanPopup() },
             containerColor = SurfaceDark,
-            title = { Text("Account Restricted", color = MetascoreRed, fontWeight = FontWeight.Bold) },
+            title = { Text("Account Restricted", color = JointScoreRed, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text("Your account has been reviewed and restricted by a human moderator for violating our community guidelines.", color = Color.White)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("There is no automated system involved, and this decision is final. No appeals will be accepted at this time.", color = Color.LightGray, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Restriction Ends: ${banExpiration ?: "Permanent"}", color = MetascoreRed, fontWeight = FontWeight.Bold)
+                    Text("Restriction Ends: ${banExpiration ?: "Permanent"}", color = JointScoreRed, fontWeight = FontWeight.Bold)
                 }
             },
             confirmButton = {
-                Button(onClick = { viewModel.dismissBanPopup() }, colors = ButtonDefaults.buttonColors(containerColor = MetascoreRed)) {
+                Button(onClick = { viewModel.dismissBanPopup() }, colors = ButtonDefaults.buttonColors(containerColor = JointScoreRed)) {
                     Text("I Understand", color = Color.White)
                 }
             }
         )
     }
 
-    when (uiState) {
-        is HomeState.Loading -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color.White)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            coroutineScope.launch {
+                viewModel.fetchHomeData(isRefresh = true)
+                isRefreshing = false
             }
-        }
-        is HomeState.Error -> {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text((uiState as HomeState.Error).message, color = Color.Red)
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = { viewModel.fetchHomeData() },
-                    colors = ButtonDefaults.buttonColors(containerColor = MetascoreGreen)
-                ) {
-                    Text("Tap to Retry", color = Color.White, fontWeight = FontWeight.Bold)
+        },
+        modifier = Modifier.fillMaxSize().background(Color(0xFF181818))
+    ) {
+        when (uiState) {
+            is HomeState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
                 }
             }
-        }
-        is HomeState.Success -> {
-            val data = (uiState as HomeState.Success).data
+            is HomeState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text((uiState as HomeState.Error).message, color = Color.Red)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.fetchHomeData() },
+                        colors = ButtonDefaults.buttonColors(containerColor = JointScoreGreen)
+                    ) {
+                        Text("Tap to Retry", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            is HomeState.Success -> {
+                val data = (uiState as HomeState.Success).data
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF181818))
-                    .padding(vertical = 16.dp)
-            ) {
-                if (data.featured.isNotEmpty()) {
-                    item { SectionTitle("Featured Games") }
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(data.featured) { game ->
-                                val imageUrl = game.customBanner ?: game.coverImage ?: ""
-                                val score = game.metascore ?: 0
-                                val genreList = game.genres?.take(2) ?: emptyList()
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 16.dp)
+                ) {
+                    if (data.featured.isNotEmpty()) {
+                        item { SectionTitle("Featured Games") }
+                        item {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(data.featured) { game ->
+                                    val imageUrl = game.customBanner ?: game.coverImage ?: ""
+                                    val score = game.metascore ?: 0
+                                    val genreList = game.genres?.take(2) ?: emptyList()
 
-                                GameCard(
-                                    title = game.title ?: "Unknown",
-                                    imageUrl = imageUrl,
-                                    score = score,
-                                    genres = genreList,
-                                    onClick = { onGameClick(game.gameId ?: 0L) }
-                                )
+                                    GameCard(
+                                        title = game.title ?: "Unknown",
+                                        imageUrl = imageUrl,
+                                        score = score,
+                                        genres = genreList,
+                                        onClick = { onGameClick(game.gameId ?: 0L) }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                if (data.trending.isNotEmpty()) {
-                    item { SectionTitle("Trending") }
-                    item { HorizontalGameCarousel(data.trending, onGameClick) }
-                }
+                    if (data.trending.isNotEmpty()) {
+                        item { SectionTitle("Trending") }
+                        item { HorizontalGameCarousel(data.trending, onGameClick) }
+                    }
 
-                if (data.newReleases.isNotEmpty()) {
-                    item { SectionTitle("New Releases") }
-                    item { HorizontalGameCarousel(data.newReleases, onGameClick) }
-                }
+                    if (data.newReleases.isNotEmpty()) {
+                        item { SectionTitle("New Releases") }
+                        item { HorizontalGameCarousel(data.newReleases, onGameClick) }
+                    }
 
-                if (data.topRated.isNotEmpty()) {
-                    item { SectionTitle("Top Rated") }
-                    item { HorizontalGameCarousel(data.topRated, onGameClick) }
+                    if (data.topRated.isNotEmpty()) {
+                        item { SectionTitle("Top Rated") }
+                        item { HorizontalGameCarousel(data.topRated, onGameClick) }
+                    }
                 }
             }
         }
@@ -155,7 +170,6 @@ fun HorizontalGameCarousel(games: List<GameSummary>, onGameClick: (Long) -> Unit
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(games) { game ->
-            // FIXED: Removed the genreNames check. GameSummary exclusively uses genres!
             val activeGenres = game.genres ?: emptyList()
             val genreList = activeGenres.take(2)
 
@@ -169,6 +183,7 @@ fun HorizontalGameCarousel(games: List<GameSummary>, onGameClick: (Long) -> Unit
         }
     }
 }
+
 @Composable
 fun GameCard(
     title: String,
@@ -222,7 +237,7 @@ fun GameCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "METASCORE", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "JOINTSCORE", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     ScoreBox(score)
                 }
             }
@@ -240,10 +255,10 @@ fun GenreChip(text: String) {
 @Composable
 fun ScoreBox(score: Int) {
     val scoreColor = when {
-        score == 0 -> MetascoreGray
-        score >= 75 -> MetascoreGreen
-        score >= 50 -> MetascoreYellow
-        else -> MetascoreRed
+        score == 0 -> JointScoreGray
+        score >= 75 -> JointScoreGreen
+        score >= 50 -> JointScoreYellow
+        else -> JointScoreRed
     }
 
     val displayScore = if (score == 0) "TBD" else score.toString()

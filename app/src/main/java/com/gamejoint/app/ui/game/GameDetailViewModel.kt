@@ -43,8 +43,12 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
     val currentUserId = MutableStateFlow<Long?>(null)
     val currentUsername = MutableStateFlow<String?>(null)
 
+    val rawUserReviews = MutableStateFlow<List<ReviewResponse>>(emptyList())
+    val rawCriticReviews = MutableStateFlow<List<ReviewResponse>>(emptyList())
+
     val userReviews = MutableStateFlow<List<ReviewResponse>>(emptyList())
     val criticReviews = MutableStateFlow<List<ReviewResponse>>(emptyList())
+
     val avgUserScore = MutableStateFlow<Double?>(null)
 
     val draftScore = MutableStateFlow(0)
@@ -58,6 +62,10 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
     val targetReviewId = MutableStateFlow<Long?>(null)
     val targetUserId = MutableStateFlow<Long?>(null)
     val targetUsername = MutableStateFlow("")
+
+    // FILTER & SORT STATE
+    val currentSort = MutableStateFlow("date-desc")
+    val currentFilter = MutableStateFlow("all")
 
     init {
         observeSession()
@@ -102,19 +110,16 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
         } catch (e: Exception) {}
     }
 
-    // --- FIXED: FIRE NETWORK REQUESTS IN PARALLEL ---
     fun loadGame(gameId: Long) {
         _uiState.value = GameDetailState.Loading
         loadDraft(gameId)
 
         viewModelScope.launch {
             try {
-                // Fire all three network requests simultaneously
                 val gameDef = async(Dispatchers.IO) { ApiClient.gameService.getGameById(gameId).execute() }
                 val userRevDef = async(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 5L, size = 50).execute() }
                 val criticRevDef = async(Dispatchers.IO) { ApiClient.reviewService.getGameReviews(gameId = gameId, roleId = 4L, size = 50).execute() }
 
-                // Suspend and wait for all three to return
                 val gameResponse = gameDef.await()
                 val userRevResponse = userRevDef.await()
                 val criticRevResponse = criticRevDef.await()
@@ -128,18 +133,65 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
 
                 if (userRevResponse.isSuccessful) {
                     val reviews = userRevResponse.body()?.content ?: emptyList()
-                    userReviews.value = reviews
-                    avgUserScore.value = if (reviews.isNotEmpty()) reviews.map { it.score ?: 0 }.average() else null
+                    rawUserReviews.value = reviews
+                    avgUserScore.value = if (reviews.isNotEmpty()) reviews.map { it.score }.average() else null
                     detectExistingUserReview(reviews)
                 }
 
                 if (criticRevResponse.isSuccessful) {
-                    criticReviews.value = criticRevResponse.body()?.content ?: emptyList()
+                    rawCriticReviews.value = criticRevResponse.body()?.content ?: emptyList()
                 }
+
+                applyFiltersAndSort()
             } catch (e: Exception) {
                 _uiState.value = GameDetailState.Error("Network Error: ${e.message}")
             }
         }
+    }
+
+    fun setSort(type: String) {
+        currentSort.value = type
+        applyFiltersAndSort()
+    }
+
+    fun setFilter(type: String) {
+        currentFilter.value = type
+        applyFiltersAndSort()
+    }
+
+    private fun applyFiltersAndSort() {
+        val sortType = currentSort.value
+        val filterType = currentFilter.value
+
+        fun processList(list: List<ReviewResponse>, isCritic: Boolean): List<ReviewResponse> {
+            var processed = list
+
+            // Apply Filter
+            processed = when (filterType) {
+                "green" -> processed.filter { getNormalizedScore(it.score, isCritic) >= 75.0 }
+                "yellow" -> processed.filter { getNormalizedScore(it.score, isCritic) in 50.0..74.9 }
+                "red" -> processed.filter { getNormalizedScore(it.score, isCritic) < 50.0 }
+                else -> processed
+            }
+
+            // Apply Sort
+            processed = when (sortType) {
+                "date-desc" -> processed.sortedByDescending { it.createdAt }
+                "date-asc" -> processed.sortedBy { it.createdAt }
+                "desc" -> processed.sortedByDescending { getNormalizedScore(it.score, isCritic) }
+                "asc" -> processed.sortedBy { getNormalizedScore(it.score, isCritic) }
+                else -> processed
+            }
+
+            return processed
+        }
+
+        userReviews.value = processList(rawUserReviews.value, false)
+        criticReviews.value = processList(rawCriticReviews.value, true)
+    }
+
+    private fun getNormalizedScore(score: Int, isCritic: Boolean): Double {
+        return if (!isCritic) (score * 10).toDouble() else score.toDouble()
     }
 
     private fun detectExistingUserReview(reviews: List<ReviewResponse>) {
@@ -147,7 +199,7 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
         val myReview = reviews.find { cName != null && it.authorUsername.equals(cName, ignoreCase = true) }
         if (myReview != null) {
             existingReviewId.value = myReview.id
-            draftScore.value = myReview.score ?: 0
+            draftScore.value = myReview.score
             draftText.value = myReview.comment ?: ""
         } else {
             existingReviewId.value = null

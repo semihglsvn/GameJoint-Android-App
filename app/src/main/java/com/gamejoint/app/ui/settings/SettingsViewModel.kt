@@ -23,7 +23,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val prefs = application.getSharedPreferences(SettingsHelper.PREFS_NAME, Context.MODE_PRIVATE)
 
-    // --- API STATES ---
     private val _profileData = MutableStateFlow<UserProfileResponse?>(null)
     val profileData = _profileData.asStateFlow()
 
@@ -34,17 +33,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _feedbackMessage = MutableSharedFlow<String>()
     val feedbackMessage = _feedbackMessage.asSharedFlow()
 
-    // --- LOCAL PREFERENCE STATES ---
     val currentTheme = MutableStateFlow(prefs.getInt(SettingsHelper.KEY_THEME, 0))
     val currentCacheMb = MutableStateFlow(prefs.getLong(SettingsHelper.KEY_CACHE_MB, 50L))
 
     init {
         loadProfile()
     }
-
-    // ==========================================
-    // LOCAL SETTINGS LOGIC
-    // ==========================================
 
     fun updateTheme(themeId: Int) {
         currentTheme.value = themeId
@@ -56,13 +50,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         prefs.edit { putLong(SettingsHelper.KEY_CACHE_MB, megabytes) }
     }
 
-    // ==========================================
-    // NETWORK LOGIC
-    // ==========================================
-
     fun loadProfile() {
         viewModelScope.launch {
-            isLoading.value = true
+            // Only show full loading spinner if we don't have data yet
+            if (_profileData.value == null) isLoading.value = true
             try {
                 val response = withContext(Dispatchers.IO) { ApiClient.userService.getProfile().execute() }
                 if (response.isSuccessful) {
@@ -102,7 +93,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // Provide a callback (onSuccess) so the UI knows when to force a logout
     fun changeEmail(otp: String, newEmail: String, onSuccess: () -> Unit) {
         if (otp.isBlank() || newEmail.isBlank()) return
         executeSecureAction(onSuccess) {
@@ -124,6 +114,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // --- NEW: CANCEL DELETION ---
+    fun cancelDeletion() {
+        viewModelScope.launch {
+            isActionLoading.value = true
+            try {
+                val response = withContext(Dispatchers.IO) { ApiClient.userService.cancelDeletion().execute() }
+                if (response.isSuccessful) {
+                    _feedbackMessage.emit("Account deletion cancelled.")
+                    loadProfile() // Instantly refresh the UI to remove the red warning card!
+                } else {
+                    _feedbackMessage.emit("Failed to cancel deletion.")
+                }
+            } catch (e: Exception) {
+                _feedbackMessage.emit("Network Error.")
+            } finally {
+                isActionLoading.value = false
+            }
+        }
+    }
+
     private fun executeSecureAction(onSuccess: () -> Unit, apiCall: () -> retrofit2.Response<Map<String, String>>) {
         viewModelScope.launch {
             isActionLoading.value = true
@@ -131,7 +141,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val response = withContext(Dispatchers.IO) { apiCall() }
                 if (response.isSuccessful) {
                     _feedbackMessage.emit(response.body()?.get("message") ?: "Success!")
-                    otpSent.value = false // Reset OTP state
+                    otpSent.value = false
                     onSuccess()
                 } else {
                     val err = response.errorBody()?.string() ?: "Action failed."

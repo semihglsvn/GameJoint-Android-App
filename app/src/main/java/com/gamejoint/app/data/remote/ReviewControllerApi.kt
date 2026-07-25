@@ -7,6 +7,7 @@ import com.google.gson.annotations.SerializedName
 
 import com.gamejoint.app.data.model.PageReviewResponse
 import com.gamejoint.app.data.model.ReviewCreateRequest
+import com.gamejoint.app.data.model.ReviewResponse
 import com.gamejoint.app.data.model.ReviewUpdateRequest
 
 interface ReviewControllerApi {
@@ -66,4 +67,6 @@ interface ReviewControllerApi {
     @PUT("api/reviews/{reviewId}")
     fun updateReview(@Path("reviewId") reviewId: kotlin.Long, @Body reviewUpdateRequest: ReviewUpdateRequest): Call<kotlin.collections.Map<kotlin.String, kotlin.String>>
 
+    @GET("api/reviews/user/{username}")
+    fun getUserReviews(@retrofit2.http.Path("username") username: String): retrofit2.Call<List<ReviewResponse>>
 }

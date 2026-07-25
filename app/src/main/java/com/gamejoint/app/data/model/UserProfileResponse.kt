@@ -23,23 +23,9 @@
 
 package com.gamejoint.app.data.model
 
-
 import com.google.gson.annotations.SerializedName
-
-/**
- * 
- *
- * @param id 
- * @param username 
- * @param email 
- * @param dob 
- * @param isVerified 
- * @param createdAt 
- * @param roleName 
- * @param isBanned 
- * @param banExpiresAt 
- */
-
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 data class UserProfileResponse (
 
@@ -53,13 +39,14 @@ data class UserProfileResponse (
     val email: kotlin.String? = null,
 
     @SerializedName("dob")
-    val dob: java.time.LocalDate? = null,
+    val dob: LocalDate? = null,
 
     @SerializedName("isVerified")
     val isVerified: kotlin.Boolean? = null,
 
+    // FIXED: Changed from OffsetDateTime to LocalDateTime to match Spring Boot
     @SerializedName("createdAt")
-    val createdAt: java.time.OffsetDateTime? = null,
+    val createdAt: LocalDateTime? = null,
 
     @SerializedName("roleName")
     val roleName: kotlin.String? = null,
@@ -67,11 +54,12 @@ data class UserProfileResponse (
     @SerializedName("isBanned")
     val isBanned: kotlin.Boolean? = null,
 
+    // FIXED: Changed from OffsetDateTime to LocalDateTime
     @SerializedName("banExpiresAt")
-    val banExpiresAt: java.time.OffsetDateTime? = null
+    val banExpiresAt: LocalDateTime? = null,
 
-) {
+    // FIXED: Changed from OffsetDateTime to LocalDateTime
+    @SerializedName("deletionDate")
+    val deletionDate: LocalDateTime? = null
 
-
-}
-
+)

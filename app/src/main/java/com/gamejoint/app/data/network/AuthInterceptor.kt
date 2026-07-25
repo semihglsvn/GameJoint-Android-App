@@ -26,6 +26,17 @@ class AuthInterceptor(private val sessionManager: SessionManager) : Interceptor 
             requestBuilder.header("Authorization", "Bearer $token")
         }
 
-        return chain.proceed(requestBuilder.build())
+        // 5. Execute the network call
+        val response = chain.proceed(requestBuilder.build())
+
+        // 6. --- GLOBAL 401 HANDLER ---
+        // If the server rejects the token (expired/revoked), wipe it from the device
+        if (response.code == 401) {
+            runBlocking {
+                sessionManager.clearSession()
+            }
+        }
+
+        return response
     }
 }

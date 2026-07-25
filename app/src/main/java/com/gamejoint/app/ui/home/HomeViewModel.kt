@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import kotlinx.coroutines.supervisorScope
 
 data class HomeData(
     val featured: List<FeaturedGameResponse> = emptyList(),
@@ -30,7 +31,6 @@ sealed class HomeState {
     data class Error(val message: String) : HomeState()
 }
 
-// CHANGED: Now an AndroidViewModel so we can access DataStore!
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sessionManager = SessionManager(application)
@@ -41,7 +41,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // --- BAN POPUP STATES ---
     val showBanPopup = MutableStateFlow(false)
     val banExpiration = MutableStateFlow<String?>("Permanent")
-    private var hasShownPopupThisSession = false // Prevents spamming the user every time they go home
+    private var hasShownPopupThisSession = false
 
     init {
         fetchHomeData()
@@ -66,7 +66,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val json = JSONObject(payloadJson)
 
                 if (json.has("isBanned") && json.getBoolean("isBanned")) {
-                    // Try to grab the expiration date if your backend provides it in the token!
                     if (json.has("banExpiration")) {
                         banExpiration.value = json.getString("banExpiration")
                     } else {
@@ -85,37 +84,41 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         showBanPopup.value = false
     }
 
-     fun fetchHomeData() {
-        _uiState.value = HomeState.Loading
+    // FIXED: Added isRefresh to prevent the screen from going blank on pull-to-refresh
+    fun fetchHomeData(isRefresh: Boolean = false) {
+        if (!isRefresh) {
+            _uiState.value = HomeState.Loading
+        }
 
         viewModelScope.launch {
             try {
-                val featuredDef = async(Dispatchers.IO) {
-                    try { ApiClient.gameService.getFeaturedGames().execute().body() ?: emptyList() } catch (e: Exception) { emptyList() }
-                }
-                val trendingDef = async(Dispatchers.IO) {
-                    try { ApiClient.gameService.getTrendingGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
-                }
-                val newReleasesDef = async(Dispatchers.IO) {
-                    try { ApiClient.gameService.getNewReleases(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
-                }
-                val topRatedDef = async(Dispatchers.IO) {
-                    try { ApiClient.gameService.getTopRatedGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
-                }
+                supervisorScope {
+                    val featuredDef = async(Dispatchers.IO) {
+                        try { ApiClient.gameService.getFeaturedGames().execute().body() ?: emptyList() } catch (e: Exception) { emptyList() }
+                    }
+                    val trendingDef = async(Dispatchers.IO) {
+                        try { ApiClient.gameService.getTrendingGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
+                    }
+                    val newReleasesDef = async(Dispatchers.IO) {
+                        try { ApiClient.gameService.getNewReleases(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
+                    }
+                    val topRatedDef = async(Dispatchers.IO) {
+                        try { ApiClient.gameService.getTopRatedGames(0, 15).execute().body()?.content ?: emptyList() } catch (e: Exception) { emptyList() }
+                    }
 
-                val data = HomeData(
-                    featured = featuredDef.await(),
-                    trending = trendingDef.await(),
-                    newReleases = newReleasesDef.await(),
-                    topRated = topRatedDef.await()
-                )
+                    val data = HomeData(
+                        featured = featuredDef.await(),
+                        trending = trendingDef.await(),
+                        newReleases = newReleasesDef.await(),
+                        topRated = topRatedDef.await()
+                    )
 
-                if (data.featured.isEmpty() && data.trending.isEmpty() && data.newReleases.isEmpty() && data.topRated.isEmpty()) {
-                    _uiState.value = HomeState.Error("Could not connect to the game server.")
-                } else {
-                    _uiState.value = HomeState.Success(data)
+                    if (data.featured.isEmpty() && data.trending.isEmpty() && data.newReleases.isEmpty() && data.topRated.isEmpty()) {
+                        _uiState.value = HomeState.Error("Could not connect to the game server.")
+                    } else {
+                        _uiState.value = HomeState.Success(data)
+                    }
                 }
-
             } catch (e: Exception) {
                 _uiState.value = HomeState.Error("Critical Error: ${e.localizedMessage}")
             }

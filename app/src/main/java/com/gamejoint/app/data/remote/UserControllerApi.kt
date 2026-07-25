@@ -3,6 +3,7 @@ package com.gamejoint.app.data.remote
 import com.gamejoint.app.data.model.AccountDeleteRequest
 import com.gamejoint.app.data.model.EmailChangeRequest
 import com.gamejoint.app.data.model.PasswordChangeRequest
+import com.gamejoint.app.data.model.PublicProfileResponse
 import com.gamejoint.app.data.model.UserProfileResponse
 import retrofit2.Call
 import retrofit2.http.Body
@@ -28,4 +29,10 @@ interface UserControllerApi {
     // Retrofit's @DELETE does not support bodies. We MUST use @HTTP instead!
     @HTTP(method = "DELETE", path = "api/users/account", hasBody = true)
     fun deleteAccount(@Body request: AccountDeleteRequest): Call<Map<String, String>>
+
+    @POST("api/users/cancel-deletion")
+    fun cancelDeletion(): Call<Map<String, String>>
+
+    @GET("api/users/{username}/public")
+    fun getPublicProfile(@retrofit2.http.Path("username") username: String): retrofit2.Call<PublicProfileResponse>
 }

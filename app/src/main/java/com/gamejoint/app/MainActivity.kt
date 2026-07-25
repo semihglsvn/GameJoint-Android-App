@@ -30,6 +30,7 @@ import com.gamejoint.app.ui.game.GameDetailScreen
 import com.gamejoint.app.ui.home.HomeScreen
 import com.gamejoint.app.ui.search.SearchScreen
 import com.gamejoint.app.ui.settings.SettingsScreen
+import com.gamejoint.app.ui.profile.ProfileScreen
 import com.gamejoint.app.ui.theme.Gamejoint_appTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -38,22 +39,19 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-// A simple helper to manage our settings across the app
 object SettingsHelper {
     const val PREFS_NAME = "gamejoint_settings"
     const val KEY_CACHE_MB = "disk_cache_mb"
-    const val KEY_THEME = "app_theme" // 0 = System, 1 = Light, 2 = Dark
+    const val KEY_THEME = "app_theme"
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Read settings from SharedPreferences
         val prefs = getSharedPreferences(SettingsHelper.PREFS_NAME, Context.MODE_PRIVATE)
-        val cacheSizeMb = prefs.getLong(SettingsHelper.KEY_CACHE_MB, 50L) // Default 50MB!
+        val cacheSizeMb = prefs.getLong(SettingsHelper.KEY_CACHE_MB, 50L)
 
-        // 2. Initialize the strict Coil Cache architecture with the dynamic variable
         val imageLoader = coil.ImageLoader.Builder(this)
             .memoryCache {
                 coil.memory.MemoryCache.Builder(this)
@@ -63,7 +61,7 @@ class MainActivity : ComponentActivity() {
             .diskCache {
                 coil.disk.DiskCache.Builder()
                     .directory(this.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(cacheSizeMb * 1024 * 1024) // Dynamic size here!
+                    .maxSizeBytes(cacheSizeMb * 1024 * 1024)
                     .build()
             }
             .crossfade(true)
@@ -71,17 +69,15 @@ class MainActivity : ComponentActivity() {
 
         try {
             coil.Coil.setImageLoader(imageLoader)
-        } catch (e: Exception) {
-        }
+        } catch (e: Exception) {}
 
         setContent {
-            // Theme observer so it updates instantly when changed in Settings
             var themeMode by remember { mutableIntStateOf(prefs.getInt(SettingsHelper.KEY_THEME, 0)) }
 
             val isDark = when (themeMode) {
-                1 -> false // Force Light
-                2 -> true  // Force Dark
-                else -> isSystemInDarkTheme() // System Default
+                1 -> false
+                2 -> true
+                else -> isSystemInDarkTheme()
             }
 
             Gamejoint_appTheme(darkTheme = isDark) {
@@ -115,7 +111,6 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             var success = false
             var fetchedUrl = ""
 
-            // Gist retry loop to survive initial wake-up lag
             while (attempts < 5 && !success) {
                 try {
                     val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt"
@@ -133,9 +128,8 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                 }
             }
 
-            val finalUrl = if (success) fetchedUrl else "http://localhost/"
+            val finalUrl = if (success) fetchedUrl else "http://10.0.2.2:8080/"
             ApiClient.initialize(finalUrl, sessionManager)
-
             isApiReady = true
         }
     }
@@ -151,27 +145,35 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             isLoggedIn = isUserLoggedIn,
             onNavigateToHome = {
                 navController.navigate("home") {
-                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                    popUpTo("home") { inclusive = true }
                     launchSingleTop = true
                 }
             },
             onNavigateToLogin = { navController.navigate("login") },
             onNavigateToRegister = { navController.navigate("register") },
-            onNavigateToProfile = { /* TODO */ },
+            onNavigateToProfile = {
+                // FIXED: Use the local 'currentToken' state variable directly!
+                if (!currentToken.isNullOrEmpty()) {
+                    try {
+                        val payload = String(android.util.Base64.decode(currentToken!!.split(".")[1], android.util.Base64.URL_SAFE))
+                        val json = org.json.JSONObject(payload)
+                        val username = if (json.has("sub")) json.getString("sub") else json.optString("username", "")
+                        if (username.isNotEmpty()) {
+                            navController.navigate("profile/$username")
+                        }
+                    } catch (e: Exception) {}
+                }
+            },
             onLogout = {
                 coroutineScope.launch {
                     sessionManager.clearSession()
                     navController.navigate("home") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        popUpTo(navController.graph.id) { inclusive = true }
                     }
                 }
             },
-            onNavigateToSettings = {
-                navController.navigate("settings")
-            },
-            onSearchSubmit = { query ->
-                navController.navigate("search?query=$query")
-            }
+            onNavigateToSettings = { navController.navigate("settings") },
+            onSearchSubmit = { query -> navController.navigate("search?query=$query") }
         ) { innerPadding ->
 
             NavHost(
@@ -181,32 +183,24 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             ) {
                 composable("login") {
                     LoginScreen(
-                        onNavigateToHome = {
-                            navController.navigate("home") { popUpTo("login") { inclusive = true } }
-                        },
+                        onNavigateToHome = { navController.navigate("home") { popUpTo("login") { inclusive = true } } },
                         onNavigateToRegister = { navController.navigate("register") },
                         onNavigateToForgot = { navController.navigate("forgot") },
-                        onNavigateToVerify = { email ->
-                            navController.navigate("verify/$email/false")
-                        }
+                        onNavigateToVerify = { email -> navController.navigate("verify/$email/false") }
                     )
                 }
 
                 composable("register") {
                     RegisterScreen(
                         onNavigateToLogin = { navController.popBackStack() },
-                        onNavigateToVerification = { email ->
-                            navController.navigate("verify/$email/false")
-                        }
+                        onNavigateToVerification = { email -> navController.navigate("verify/$email/false") }
                     )
                 }
 
                 composable("forgot") {
                     ForgotScreen(
                         onNavigateBackToLogin = { navController.popBackStack() },
-                        onNavigateToVerification = { email ->
-                            navController.navigate("verify/$email/true")
-                        }
+                        onNavigateToVerification = { email -> navController.navigate("verify/$email/true") }
                     )
                 }
 
@@ -219,16 +213,11 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     val isPasswordReset = backStackEntry.arguments?.getBoolean("isPasswordReset") ?: false
-
                     VerificationScreen(
                         email = email,
                         isPasswordReset = isPasswordReset,
-                        onNavigateToLogin = {
-                            navController.navigate("login") { popUpTo("login") { inclusive = true } }
-                        },
-                        onNavigateToNewPassword = { passedEmail, otpCode ->
-                            navController.navigate("reset_password/$passedEmail/$otpCode")
-                        }
+                        onNavigateToLogin = { navController.navigate("login") { popUpTo("login") { inclusive = true } } },
+                        onNavigateToNewPassword = { passedEmail, otpCode -> navController.navigate("reset_password/$passedEmail/$otpCode") }
                     )
                 }
 
@@ -241,48 +230,50 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                 ) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     val otpCode = backStackEntry.arguments?.getString("otpCode") ?: ""
-
                     NewPasswordScreen(
                         email = email,
                         otpCode = otpCode,
-                        onNavigateToLogin = {
-                            navController.navigate("login") { popUpTo("login") { inclusive = true } }
-                        }
+                        onNavigateToLogin = { navController.navigate("login") { popUpTo("login") { inclusive = true } } }
                     )
                 }
 
                 composable("home") {
-                    HomeScreen(
-                        onGameClick = { gameId ->
-                            navController.navigate("gameDetails/$gameId")
-                        }
-                    )
+                    HomeScreen(onGameClick = { gameId -> navController.navigate("gameDetails/$gameId") })
                 }
 
                 composable(
                     route = "search?query={query}",
-                    arguments = listOf(navArgument("query") {
-                        type = NavType.StringType
-                        defaultValue = ""
-                    })
+                    arguments = listOf(navArgument("query") { type = NavType.StringType; defaultValue = "" })
                 ) { backStackEntry ->
                     val query = backStackEntry.arguments?.getString("query") ?: ""
                     SearchScreen(
                         initialQuery = query,
-                        onGameClick = { gameId ->
-                            navController.navigate("gameDetails/$gameId")
-                        }
+                        onGameClick = { gameId -> navController.navigate("gameDetails/$gameId") }
                     )
                 }
 
                 composable(
                     route = "gameDetails/{gameId}",
-                    arguments = listOf(navArgument("gameId") {
-                        type = NavType.LongType
-                    })
+                    arguments = listOf(navArgument("gameId") { type = NavType.LongType })
                 ) { backStackEntry ->
                     val gameId = backStackEntry.arguments?.getLong("gameId") ?: 0L
-                    GameDetailScreen(gameId = gameId)
+                    GameDetailScreen(
+                        gameId = gameId,
+                        // FIXED: Route to the Profile screen using the Author's username string
+                        onNavigateToProfile = { username -> navController.navigate("profile/$username") }
+                    )
+                }
+
+                composable(
+                    route = "profile/{username}",
+                    arguments = listOf(navArgument("username") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val targetUsername = backStackEntry.arguments?.getString("username") ?: ""
+                    ProfileScreen(
+                        targetUsername = targetUsername,
+                        onNavigateToGame = { gameId -> navController.navigate("gameDetails/$gameId") },
+                        onNavigateToSettings = { navController.navigate("settings") }
+                    )
                 }
 
                 composable("settings") {
@@ -292,7 +283,7 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                             coroutineScope.launch {
                                 sessionManager.clearSession()
                                 navController.navigate("home") {
-                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    popUpTo(navController.graph.id) { inclusive = true }
                                 }
                             }
                         }

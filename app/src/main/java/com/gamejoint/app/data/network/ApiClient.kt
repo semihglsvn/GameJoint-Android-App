@@ -1,13 +1,17 @@
 package com.gamejoint.app.data.network
 
 import com.gamejoint.app.data.local.SessionManager
-import com.gamejoint.app.data.remote.* // Imports all 6 of your Controller APIs
+import com.gamejoint.app.data.remote.*
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.lang.reflect.Type
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
@@ -27,10 +31,17 @@ object ApiClient {
 
         val safeUrl = if (dynamicBaseUrl.endsWith("/")) dynamicBaseUrl else "$dynamicBaseUrl/"
 
-        // --- FIX 3: Custom Gson to parse String into LocalDate ---
+        // --- FIXED: Explicit Object declarations prevent Kotlin Type Erasure ---
         val customGson = GsonBuilder()
-            .registerTypeAdapter(LocalDate::class.java, JsonDeserializer { json, _, _ ->
-                LocalDate.parse(json.asString)
+            .registerTypeAdapter(LocalDate::class.java, object : JsonDeserializer<LocalDate> {
+                override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): LocalDate {
+                    return LocalDate.parse(json.asString)
+                }
+            })
+            .registerTypeAdapter(LocalDateTime::class.java, object : JsonDeserializer<LocalDateTime> {
+                override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): LocalDateTime {
+                    return LocalDateTime.parse(json.asString)
+                }
             })
             .create()
 
@@ -44,7 +55,7 @@ object ApiClient {
         val retrofit = Retrofit.Builder()
             .baseUrl(safeUrl)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create(customGson)) // Attach custom Gson here!
+            .addConverterFactory(GsonConverterFactory.create(customGson))
             .build()
 
         authService = retrofit.create(AuthControllerApi::class.java)
