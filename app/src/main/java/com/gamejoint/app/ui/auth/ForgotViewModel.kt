@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 sealed class ForgotState {
     object Idle : ForgotState()
@@ -37,7 +38,14 @@ class ForgotViewModel : ViewModel() {
                     // Pass the email into the success state
                     _uiState.value = ForgotState.Success(email)
                 } else {
-                    _uiState.value = ForgotState.Error("Reset request failed: ${response.code()}")
+                    val errorString = response.errorBody()?.string() ?: ""
+                    val message = try {
+                        val json = JSONObject(errorString)
+                        json.optString("message", "Reset request failed (${response.code()})")
+                    } catch (e: Exception) {
+                        "Reset request failed (${response.code()})"
+                    }
+                    _uiState.value = ForgotState.Error(message)
                 }
             } catch (e: Exception) {
                 _uiState.value = ForgotState.Error("Network Error: ${e.localizedMessage}")

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +61,16 @@ fun GameDetailScreen(
     val coroutineScope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF121212)
+    val cardBgColor = if (isLightMode) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+    val dividerColor = if (isLightMode) MaterialTheme.colorScheme.outlineVariant else Color.DarkGray
+    val modalBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF222222)
+    val placeholderColor = if (isLightMode) Color.LightGray else Color(0xFF2A2A2A)
+
     LaunchedEffect(gameId) {
         viewModel.loadGame(gameId)
     }
@@ -79,7 +90,7 @@ fun GameDetailScreen(
                 isRefreshing = false
             }
         },
-        modifier = Modifier.fillMaxSize().background(Color(0xFF121212))
+        modifier = Modifier.fillMaxSize().background(appBgColor)
     ) {
         when (val state = uiState) {
             is GameDetailState.Loading -> if (!isRefreshing) {
@@ -88,7 +99,7 @@ fun GameDetailScreen(
                 }
             }
             is GameDetailState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red)
+                Text(state.message, color = MaterialTheme.colorScheme.error)
             }
             is GameDetailState.Success -> {
                 val game = state.game
@@ -100,7 +111,7 @@ fun GameDetailScreen(
                             model = game.coverImage,
                             contentDescription = game.title,
                             contentScale = ContentScale.Crop,
-                            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFF2A2A2A)),
+                            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(placeholderColor),
                             modifier = Modifier.fillMaxWidth().height(250.dp).padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(8.dp))
                         )
                     }
@@ -108,7 +119,7 @@ fun GameDetailScreen(
                     // 2. TITLE & GENRES
                     item {
                         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            Text(game.title ?: "Unknown", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                            Text(game.title ?: "Unknown", color = primaryTextColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -119,7 +130,7 @@ fun GameDetailScreen(
                                     }
                                 }
                             }
-                            HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 16.dp))
+                            HorizontalDivider(color = dividerColor, modifier = Modifier.padding(vertical = 16.dp))
                         }
                     }
 
@@ -139,7 +150,7 @@ fun GameDetailScreen(
                                     Text(if (calculatedJointScore > 0) calculatedJointScore.toString() else "TBD", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("JointScore", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("JointScore", color = primaryTextColor, fontWeight = FontWeight.Bold)
 
                                 val subtitle = if (hasLocalCriticReviews) {
                                     "Based on ${criticReviews.size} reviews"
@@ -148,10 +159,10 @@ fun GameDetailScreen(
                                 } else {
                                     "No reviews yet"
                                 }
-                                Text(subtitle, color = Color.Gray, fontSize = 11.sp)
+                                Text(subtitle, color = secondaryTextColor, fontSize = 11.sp)
                             }
 
-                            Box(modifier = Modifier.width(1.dp).height(80.dp).background(Color.DarkGray))
+                            Box(modifier = Modifier.width(1.dp).height(80.dp).background(dividerColor))
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 val uScore = avgUserScore ?: 0.0
@@ -160,17 +171,17 @@ fun GameDetailScreen(
                                     Text(if (uScore > 0) String.format(java.util.Locale.US, "%.1f", uScore) else "TBD", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("User Score", color = Color.White, fontWeight = FontWeight.Bold)
-                                Text(if (userReviews.isNotEmpty()) "Based on ${userReviews.size} reviews" else "No reviews yet", color = Color.Gray, fontSize = 11.sp)
+                                Text("User Score", color = primaryTextColor, fontWeight = FontWeight.Bold)
+                                Text(if (userReviews.isNotEmpty()) "Based on ${userReviews.size} reviews" else "No reviews yet", color = secondaryTextColor, fontSize = 11.sp)
                             }
                         }
-                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 16.dp, horizontal = 16.dp))
+                        HorizontalDivider(color = dividerColor, modifier = Modifier.padding(vertical = 16.dp, horizontal = 16.dp))
                     }
 
                     // 4. ABOUT
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).animateContentSize()) {
-                            Text("About", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("About", color = primaryTextColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(12.dp))
 
                             val platformsStr = game.platformNames?.joinToString(", ") ?: game.platforms?.joinToString(", ")
@@ -179,8 +190,8 @@ fun GameDetailScreen(
                             metaDataMap.forEach { (label, value) ->
                                 if (!value.isNullOrBlank()) {
                                     Row(modifier = Modifier.padding(bottom = 4.dp)) {
-                                        Text("$label: ", color = Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        Text(value, color = Color.LightGray, fontSize = 13.sp)
+                                        Text("$label: ", color = secondaryTextColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(value, color = primaryTextColor, fontSize = 13.sp)
                                     }
                                 }
                             }
@@ -189,7 +200,7 @@ fun GameDetailScreen(
 
                             Text(
                                 text = game.description ?: "No description available.",
-                                color = Color.LightGray, fontSize = 14.sp, lineHeight = 20.sp,
+                                color = primaryTextColor, fontSize = 14.sp, lineHeight = 20.sp,
                                 maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 4,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -199,38 +210,40 @@ fun GameDetailScreen(
 
                             // RAWG ATTRIBUTION
                             Spacer(Modifier.height(8.dp))
-                            Text("Data courtesy of RAWG.io", color = Color.Gray, fontSize = 11.sp, fontStyle = FontStyle.Italic)
+                            Text("Data courtesy of RAWG.io", color = secondaryTextColor, fontSize = 11.sp, fontStyle = FontStyle.Italic)
 
-                            HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 16.dp))
+                            HorizontalDivider(color = dividerColor, modifier = Modifier.padding(vertical = 16.dp))
                         }
                     }
 
                     // 5. CONDITIONAL REVIEW BOX
                     item {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                            Text("Your Review", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Your Review", color = primaryTextColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             if (!isLoggedIn) {
-                                Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("Sign in or create an account to rate and review this game.", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Box(modifier = Modifier.fillMaxWidth().background(cardBgColor, RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Sign in or create an account to rate and review this game.", color = secondaryTextColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             } else if (isBanned) {
-                                Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF331111), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("Your account has been restricted. You cannot post reviews.", color = Color(0xFFFF3333), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                val banBgColor = if (isLightMode) MaterialTheme.colorScheme.errorContainer else Color(0xFF331111)
+                                val banTextColor = if (isLightMode) MaterialTheme.colorScheme.onErrorContainer else Color(0xFFFF3333)
+                                Box(modifier = Modifier.fillMaxWidth().background(banBgColor, RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Your account has been restricted. You cannot post reviews.", color = banTextColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             } else if (currentUserRole in 1L..3L) {
-                                Box(modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("Staff members cannot write reviews.", color = Color.Gray, fontSize = 14.sp)
+                                Box(modifier = Modifier.fillMaxWidth().background(cardBgColor, RoundedCornerShape(8.dp)).padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Staff members cannot write reviews.", color = secondaryTextColor, fontSize = 14.sp)
                                 }
                             } else if (existingReviewId != null) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).padding(16.dp),
+                                    modifier = Modifier.fillMaxWidth().background(cardBgColor, RoundedCornerShape(8.dp)).padding(16.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("You have already reviewed this game.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("You have already reviewed this game.", color = primaryTextColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         Text("Score: $draftScore", color = getScoreColor(draftScore, currentUserRole == 4L), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,7 +253,7 @@ fun GameDetailScreen(
                                 }
                             } else {
                                 Box(
-                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF222222), RoundedCornerShape(8.dp)).clickable { viewModel.showReviewModal.value = true }.padding(16.dp),
+                                    modifier = Modifier.fillMaxWidth().background(cardBgColor, RoundedCornerShape(8.dp)).clickable { viewModel.showReviewModal.value = true }.padding(16.dp),
                                     contentAlignment = Alignment.Center
                                 ) { Text("Tap to write a review...", color = Color(0xFF2D9CDB), fontWeight = FontWeight.Bold) }
                             }
@@ -251,8 +264,8 @@ fun GameDetailScreen(
                     // 6. TABS & SORT CHIPS
                     item {
                         SecondaryTabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent, contentColor = Color(0xFF55C72E)) {
-                            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, unselectedContentColor = Color.White) { Text("User Reviews", modifier = Modifier.padding(16.dp)) }
-                            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, unselectedContentColor = Color.White) { Text("Critic Reviews", modifier = Modifier.padding(16.dp)) }
+                            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, unselectedContentColor = secondaryTextColor) { Text("User Reviews", modifier = Modifier.padding(16.dp)) }
+                            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, unselectedContentColor = secondaryTextColor) { Text("Critic Reviews", modifier = Modifier.padding(16.dp)) }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -278,7 +291,7 @@ fun GameDetailScreen(
 
                     if (activeReviews.isEmpty()) {
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No reviews yet.", color = Color.Gray) }
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No reviews yet.", color = secondaryTextColor) }
                         }
                     } else {
                         items(activeReviews) { review ->
@@ -313,11 +326,11 @@ fun GameDetailScreen(
         if (showDeleteConfirm) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
-                containerColor = Color(0xFF222222),
-                title = { Text("Delete Review", color = Color.White) },
-                text = { Text("Are you sure you want to permanently delete this review?", color = Color.LightGray) },
-                confirmButton = { Button(onClick = { viewModel.deleteReview(gameId); showDeleteConfirm = false }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete", color = Color.White) } },
-                dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", color = Color.Gray) } }
+                containerColor = modalBgColor,
+                title = { Text("Delete Review", color = primaryTextColor) },
+                text = { Text("Are you sure you want to permanently delete this review?", color = secondaryTextColor) },
+                confirmButton = { Button(onClick = { viewModel.deleteReview(gameId); showDeleteConfirm = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Delete", color = MaterialTheme.colorScheme.onError) } },
+                dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", color = secondaryTextColor) } }
             )
         }
         if (viewModel.showReviewModal.collectAsState().value) ReviewEditorModal(gameId, currentUserRole == 4L, viewModel)
@@ -341,14 +354,20 @@ fun ReviewCard(
     val commentText = review.comment ?: ""
     val isLongText = commentText.length > 150
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val reviewCardBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF1E1E1E)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     ElevatedCard(
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF1E1E1E)),
+        colors = CardDefaults.elevatedCardColors(containerColor = reviewCardBgColor),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp).animateContentSize()) {
 
-            Text(review.createdAt.toString().substringBefore("T"), color = Color.Gray, fontSize = 12.sp)
+            Text(review.createdAt.toString().substringBefore("T"), color = secondaryTextColor, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -367,18 +386,18 @@ fun ReviewCard(
                 }
 
                 if (isLoggedIn && currentUserRole in 1L..3L) {
-                    Button(onClick = onBan, colors = ButtonDefaults.buttonColors(containerColor = Color.Red), contentPadding = PaddingValues(horizontal = 8.dp)) {
-                        Text("BAN", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Button(onClick = onBan, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text("BAN", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onError)
                     }
                 } else if (isLoggedIn && !isBanned) {
-                    IconButton(onClick = onReport) { Icon(Icons.Default.Warning, contentDescription = "Report", tint = Color.Gray) }
+                    IconButton(onClick = onReport) { Icon(Icons.Default.Warning, contentDescription = "Report", tint = secondaryTextColor) }
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = commentText,
-                color = Color.LightGray,
+                color = primaryTextColor,
                 fontSize = 14.sp,
                 maxLines = if (isExpanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis,
@@ -435,12 +454,19 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
     val dynamicColor = getScoreColor(sliderValue.toInt(), isCritic)
     var showPostConfirm by remember { mutableStateOf(false) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val modalBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+    val sliderInactiveColor = if (isLightMode) MaterialTheme.colorScheme.outlineVariant else Color(0xFF333333)
+
     if (showPostConfirm) {
         AlertDialog(
             onDismissRequest = { showPostConfirm = false },
-            containerColor = Color(0xFF222222),
-            title = { Text(if (existingId != null) "Update Review" else "Post Review", color = Color.White) },
-            text = { Text("Are you ready to submit this review?", color = Color.LightGray) },
+            containerColor = modalBgColor,
+            title = { Text(if (existingId != null) "Update Review" else "Post Review", color = primaryTextColor) },
+            text = { Text("Are you ready to submit this review?", color = secondaryTextColor) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -452,7 +478,7 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
                 ) { Text("Confirm", color = Color.Black) }
             },
             dismissButton = {
-                TextButton(onClick = { showPostConfirm = false }) { Text("Wait, go back", color = Color.Gray) }
+                TextButton(onClick = { showPostConfirm = false }) { Text("Wait, go back", color = secondaryTextColor) }
             }
         )
     }
@@ -462,12 +488,12 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
             viewModel.saveDraft(gameId, text, sliderValue.toInt())
             viewModel.showReviewModal.value = false
         },
-        containerColor = Color(0xFF222222),
-        title = { Text(if (existingId != null) "Edit Review" else "Write Review", color = Color.White) },
+        containerColor = modalBgColor,
+        title = { Text(if (existingId != null) "Edit Review" else "Write Review", color = primaryTextColor) },
         text = {
             Column {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Score:", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Score:", color = primaryTextColor, fontWeight = FontWeight.Bold)
                     Box(modifier = Modifier.background(dynamicColor, RoundedCornerShape(4.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
                         Text("${sliderValue.toInt()}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     }
@@ -483,7 +509,7 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
                     valueRange = minScore..maxScore,
                     colors = SliderDefaults.colors(
                         activeTrackColor = dynamicColor,
-                        inactiveTrackColor = Color(0xFF333333)
+                        inactiveTrackColor = sliderInactiveColor
                     ),
                     thumb = {
                         Box(
@@ -491,7 +517,7 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
                                 .width(6.dp)
                                 .height(28.dp)
                                 .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White)
+                                .background(primaryTextColor)
                         )
                     }
                 )
@@ -503,11 +529,14 @@ fun ReviewEditorModal(gameId: Long, isCritic: Boolean, viewModel: GameDetailView
                     onValueChange = {
                         if (it.length <= 2000) text = it
                     },
-                    label = { Text("Your thoughts...", color = Color.Gray) },
+                    label = { Text("Your thoughts...", color = secondaryTextColor) },
                     modifier = Modifier.fillMaxWidth().height(150.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = primaryTextColor,
+                        unfocusedTextColor = primaryTextColor
+                    ),
                     supportingText = {
-                        Text("${text.length} / 2000", color = if (text.length >= 2000) Color.Red else Color.Gray)
+                        Text("${text.length} / 2000", color = if (text.length >= 2000) MaterialTheme.colorScheme.error else secondaryTextColor)
                     }
                 )
             }
@@ -526,13 +555,19 @@ fun ReportModal(viewModel: GameDetailViewModel) {
     val predefinedReasons = listOf("Spam", "Offensive Language", "Spoilers", "Harassment", "Irrelevant")
     var selectedReasons by remember { mutableStateOf(setOf<String>()) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val modalBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     AlertDialog(
         onDismissRequest = { viewModel.showReportModal.value = false },
-        containerColor = Color(0xFF222222),
-        title = { Text("Report Review", color = Color.White) },
+        containerColor = modalBgColor,
+        title = { Text("Report Review", color = primaryTextColor) },
         text = {
             Column {
-                Text("Please select one or more reasons:", color = Color.Gray, fontSize = 14.sp)
+                Text("Please select one or more reasons:", color = secondaryTextColor, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 predefinedReasons.forEach { reason ->
@@ -552,10 +587,10 @@ fun ReportModal(viewModel: GameDetailViewModel) {
                         Checkbox(
                             checked = selectedReasons.contains(reason),
                             onCheckedChange = null,
-                            colors = CheckboxDefaults.colors(checkedColor = Color.Red, uncheckedColor = Color.Gray)
+                            colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.error, uncheckedColor = secondaryTextColor)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(reason, color = Color.White, fontSize = 14.sp)
+                        Text(reason, color = primaryTextColor, fontSize = 14.sp)
                     }
                 }
             }
@@ -563,14 +598,14 @@ fun ReportModal(viewModel: GameDetailViewModel) {
         confirmButton = {
             Button(
                 onClick = { viewModel.submitReport(selectedReasons.toList()) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 enabled = selectedReasons.isNotEmpty()
             ) {
-                Text("Submit Report", color = Color.White)
+                Text("Submit Report", color = MaterialTheme.colorScheme.onError)
             }
         },
         dismissButton = {
-            TextButton(onClick = { viewModel.showReportModal.value = false }) { Text("Cancel", color = Color.Gray) }
+            TextButton(onClick = { viewModel.showReportModal.value = false }) { Text("Cancel", color = secondaryTextColor) }
         }
     )
 }
@@ -581,41 +616,47 @@ fun BanModal(viewModel: GameDetailViewModel) {
     var selectedDuration by remember { mutableStateOf<Int?>(1) }
     var banReason by remember { mutableStateOf("") }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val modalBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     AlertDialog(
         onDismissRequest = { viewModel.showBanModal.value = false },
-        containerColor = Color(0xFF222222),
-        title = { Text("Ban $username", color = Color.Red) },
+        containerColor = modalBgColor,
+        title = { Text("Ban $username", color = MaterialTheme.colorScheme.error) },
         text = {
             Column {
                 OutlinedTextField(
                     value = banReason,
                     onValueChange = { banReason = it },
-                    label = { Text("Reason for ban (Optional)", color = Color.Gray) },
+                    label = { Text("Reason for ban (Optional)", color = secondaryTextColor) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = primaryTextColor, unfocusedTextColor = primaryTextColor)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = selectedDuration == 1, onClick = { selectedDuration = 1 })
-                    Text("24 Hours", color = Color.White)
+                    Text("24 Hours", color = primaryTextColor)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = selectedDuration == 7, onClick = { selectedDuration = 7 })
-                    Text("7 Days", color = Color.White)
+                    Text("7 Days", color = primaryTextColor)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = selectedDuration == null, onClick = { selectedDuration = null })
-                    Text("Permanent", color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text("Permanent", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { viewModel.banUser(selectedDuration, banReason) }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
-                Text("Execute Ban")
+            Button(onClick = { viewModel.banUser(selectedDuration, banReason) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                Text("Execute Ban", color = MaterialTheme.colorScheme.onError)
             }
         },
         dismissButton = {
-            TextButton(onClick = { viewModel.showBanModal.value = false }) { Text("Cancel", color = Color.Gray) }
+            TextButton(onClick = { viewModel.showBanModal.value = false }) { Text("Cancel", color = secondaryTextColor) }
         }
     )
 }

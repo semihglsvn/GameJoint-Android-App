@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -35,7 +36,6 @@ fun SearchScreen(
     onGameClick: (Long) -> Unit,
     viewModel: SearchViewModel = viewModel()
 ) {
-    // --- FIX 1: All @Composable State Collections MUST be at the top! ---
     val uiState by viewModel.uiState.collectAsState()
     val totalGames by viewModel.totalResults.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
@@ -46,6 +46,15 @@ fun SearchScreen(
     val sortOptions = listOf("Highest Rated", "Lowest Rated", "Newest First", "Oldest First")
     val availableGenres = listOf("Action", "Adventure", "Arcade", "Board Games", "Card", "Casual", "Educational", "Family", "Fighting", "Indie", "Massively Multiplayer", "Platformer", "Puzzle", "Racing", "RPG", "Shooter", "Simulation", "Sports", "Strategy")
     val availablePlatforms = listOf("3DO", "Android", "Apple II", "Atari 2600", "Atari 5200", "Atari 7800", "Atari 8-bit", "Atari Flashback", "Atari Lynx", "Atari ST", "Classic Macintosh", "Commodore / Amiga", "Dreamcast", "Game Boy", "Game Boy Advance", "Game Boy Color", "Game Gear", "GameCube", "Genesis", "iOS", "Jaguar", "Linux", "macOS", "Neo Geo", "NES", "PC", "PlayStation 5", "PlayStation 4", "PlayStation 3", "PlayStation 2", "Xbox Series S/X", "Xbox One", "Xbox 360", "Nintendo Switch", "Web")
+
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val cardBgColor = if (isLightMode) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF222222)
+    val inputBgColor = if (isLightMode) MaterialTheme.colorScheme.surface else Color(0xFF333333)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+    val dividerColor = if (isLightMode) MaterialTheme.colorScheme.outlineVariant else Color.DarkGray
 
     LaunchedEffect(initialQuery) {
         if (viewModel.currentQuery.value.isEmpty() && initialQuery.isNotBlank()) {
@@ -59,7 +68,7 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF181818))
+            .background(appBgColor)
             .imePadding()
     ) {
         LazyColumn(
@@ -75,15 +84,15 @@ fun SearchScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Explore", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("Explore", color = primaryTextColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                     Button(
                         onClick = { showFilters = !showFilters },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                        colors = ButtonDefaults.buttonColors(containerColor = inputBgColor),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Tune, contentDescription = "Filters", tint = Color.White)
+                        Icon(Icons.Default.Tune, contentDescription = "Filters", tint = primaryTextColor)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Filters", color = Color.White)
+                        Text("Filters", color = primaryTextColor)
                     }
                 }
             }
@@ -94,19 +103,19 @@ fun SearchScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF222222), RoundedCornerShape(12.dp))
+                            .background(cardBgColor, RoundedCornerShape(12.dp))
                             .padding(16.dp)
                     ) {
                         OutlinedTextField(
                             value = viewModel.currentQuery.collectAsState().value,
                             onValueChange = { viewModel.currentQuery.value = it },
-                            placeholder = { Text("Type a game name...", color = Color.Gray) },
+                            placeholder = { Text("Type a game name...", color = secondaryTextColor) },
                             singleLine = true,
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.Search,
                                     contentDescription = "Search",
-                                    tint = Color.Gray,
+                                    tint = secondaryTextColor,
                                     modifier = Modifier.clickable { viewModel.performSearch() }
                                 )
                             },
@@ -118,12 +127,12 @@ fun SearchScreen(
                                 }
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF333333),
-                                unfocusedContainerColor = Color(0xFF333333),
+                                focusedContainerColor = inputBgColor,
+                                unfocusedContainerColor = inputBgColor,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedTextColor = primaryTextColor,
+                                unfocusedTextColor = primaryTextColor
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp)
@@ -131,27 +140,25 @@ fun SearchScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // --- FIX 2: Stable Custom Dropdown (No deprecation warnings) ---
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = viewModel.sortBy.collectAsState().value,
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("Sort By", color = Color.Gray) },
-                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Sort", tint = Color.Gray) },
+                                label = { Text("Sort By", color = secondaryTextColor) },
+                                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = "Sort", tint = secondaryTextColor) },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
+                                    focusedTextColor = primaryTextColor,
+                                    unfocusedTextColor = primaryTextColor,
                                     focusedBorderColor = Color(0xFF2D9CDB),
                                     unfocusedBorderColor = Color.Transparent,
-                                    focusedContainerColor = Color(0xFF333333),
-                                    unfocusedContainerColor = Color(0xFF333333)
+                                    focusedContainerColor = inputBgColor,
+                                    unfocusedContainerColor = inputBgColor
                                 ),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp)
                             )
 
-                            // Magic Invisible Box that perfectly intercepts clicks for the dropdown
                             Box(
                                 modifier = Modifier
                                     .matchParentSize()
@@ -162,11 +169,11 @@ fun SearchScreen(
                             DropdownMenu(
                                 expanded = sortExpanded,
                                 onDismissRequest = { sortExpanded = false },
-                                modifier = Modifier.background(Color(0xFF333333))
+                                modifier = Modifier.background(inputBgColor)
                             ) {
                                 sortOptions.forEach { option ->
                                     DropdownMenuItem(
-                                        text = { Text(option, color = Color.White) },
+                                        text = { Text(option, color = primaryTextColor) },
                                         onClick = {
                                             viewModel.sortBy.value = option
                                             sortExpanded = false
@@ -185,30 +192,29 @@ fun SearchScreen(
                                     onCheckedChange = { viewModel.hideTbd.value = it },
                                     colors = CheckboxDefaults.colors(checkedColor = Color(0xFF55C72E))
                                 )
-                                Text("Hide TBD", color = Color.White, fontSize = 14.sp)
+                                Text("Hide TBD", color = primaryTextColor, fontSize = 14.sp)
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Logic: ", color = Color.Gray, fontSize = 14.sp)
+                                Text("Logic: ", color = secondaryTextColor, fontSize = 14.sp)
                                 RadioButton(
                                     selected = !viewModel.isMatchAll.collectAsState().value,
                                     onClick = { viewModel.isMatchAll.value = false },
                                     colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2D9CDB))
                                 )
-                                Text("OR", color = Color.White, fontSize = 12.sp)
+                                Text("OR", color = primaryTextColor, fontSize = 12.sp)
                                 RadioButton(
                                     selected = viewModel.isMatchAll.collectAsState().value,
                                     onClick = { viewModel.isMatchAll.value = true },
                                     colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2D9CDB))
                                 )
-                                Text("AND", color = Color.White, fontSize = 12.sp)
+                                Text("AND", color = primaryTextColor, fontSize = 12.sp)
                             }
                         }
 
-                        // --- FIX 3: Renamed to HorizontalDivider ---
-                        HorizontalDivider(color = Color.DarkGray, modifier = Modifier.padding(vertical = 12.dp))
+                        HorizontalDivider(color = dividerColor, modifier = Modifier.padding(vertical = 12.dp))
 
-                        Text("Genres", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Genres", color = primaryTextColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -233,7 +239,7 @@ fun SearchScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text("Platforms", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Platforms", color = primaryTextColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -277,7 +283,7 @@ fun SearchScreen(
             when (val state = uiState) {
                 is SearchState.Idle -> item {
                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Text("Search a game or apply filters.", color = Color.Gray)
+                        Text("Search a game or apply filters.", color = secondaryTextColor)
                     }
                 }
                 is SearchState.Loading -> item {
@@ -296,14 +302,14 @@ fun SearchScreen(
                     if (games.isEmpty()) {
                         item {
                             Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                Text("No games found.", color = Color.Gray)
+                                Text("No games found.", color = secondaryTextColor)
                             }
                         }
                     } else {
                         item {
                             Text(
                                 text = "Found $totalGames games",
-                                color = Color.Gray,
+                                color = secondaryTextColor,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
@@ -311,7 +317,6 @@ fun SearchScreen(
 
                         itemsIndexed(games) { index, game ->
 
-                            // Trigger load next page when at the bottom
                             if (index == games.size - 1) {
                                 LaunchedEffect(Unit) {
                                     viewModel.loadNextPage()
@@ -321,7 +326,7 @@ fun SearchScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFF222222), RoundedCornerShape(8.dp))
+                                    .background(cardBgColor, RoundedCornerShape(8.dp))
                                     .clickable { onGameClick(game.id ?: 0L) }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -330,9 +335,8 @@ fun SearchScreen(
                                     model = game.coverImage,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
-                                    // ADD THIS: A sleek, dark gray placeholder while the image downloads
                                     placeholder = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFF2A2A2A)),
-                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFF3A3A3A)), // Fallback if link is broken
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color(0xFF3A3A3A)),
                                     modifier = Modifier
                                         .size(80.dp, 100.dp)
                                         .clip(RoundedCornerShape(4.dp))
@@ -342,7 +346,7 @@ fun SearchScreen(
                                 Column {
                                     Text(
                                         text = game.title ?: "Unknown",
-                                        color = Color.White,
+                                        color = primaryTextColor,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
                                     )
@@ -353,7 +357,7 @@ fun SearchScreen(
                                         score >= 75 -> Color(0xFF55C72E)
                                         score >= 50 -> Color(0xFFFFB800)
                                         score > 0 -> Color(0xFFFF3333)
-                                        else -> Color.Gray
+                                        else -> secondaryTextColor
                                     }
                                     Text(
                                         text = if (score > 0) "Score: $score" else "TBD",
@@ -366,7 +370,7 @@ fun SearchScreen(
 
                                     Text(
                                         text = game.genres?.joinToString(", ") ?: "",
-                                        color = Color.Gray,
+                                        color = secondaryTextColor,
                                         fontSize = 12.sp,
                                         maxLines = 2,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

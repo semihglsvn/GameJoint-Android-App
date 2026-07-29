@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,12 +32,12 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    targetUsername: String, // FIXED: Now expects String!
+    targetUsername: String,
     viewModel: ProfileViewModel = viewModel(),
     onNavigateToGame: (Long) -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
-    val currentUsername by viewModel.currentUsername.collectAsState() // FIXED: Track current username
+    val currentUsername by viewModel.currentUsername.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val reviews by viewModel.rawReviews.collectAsState()
     val displayReviews by viewModel.displayReviews.collectAsState()
@@ -48,6 +49,14 @@ fun ProfileScreen(
 
     val coroutineScope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
+
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val cardBgColor = if (isLightMode) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.LightGray
+    val dividerColor = if (isLightMode) MaterialTheme.colorScheme.outlineVariant else Color.DarkGray
 
     LaunchedEffect(targetUsername) {
         viewModel.loadProfileData(targetUsername)
@@ -62,7 +71,7 @@ fun ProfileScreen(
                 isRefreshing = false
             }
         },
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(appBgColor)
     ) {
         if (isLoading && profile == null && !isRefreshing) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -85,7 +94,7 @@ fun ProfileScreen(
                     ) {
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(profile!!.username, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                Text(profile!!.username, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = primaryTextColor)
                                 if (profile!!.isBanned) {
                                     Spacer(Modifier.width(8.dp))
                                     Box(
@@ -93,31 +102,30 @@ fun ProfileScreen(
                                     ) { Text("BANNED", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                                 }
                             }
-                            Text("Member Since ${profile!!.createdAt.year}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                            Text("Member Since ${profile!!.createdAt.year}", color = secondaryTextColor, fontSize = 14.sp)
                         }
 
-                        // FIXED: Check if the viewed profile matches the currently logged-in username
                         if (currentUsername != null && currentUsername == targetUsername) {
                             IconButton(onClick = onNavigateToSettings) {
-                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = secondaryTextColor)
                             }
                         }
                     }
                     Spacer(Modifier.height(24.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(color = dividerColor)
                     Spacer(Modifier.height(24.dp))
                 }
 
                 // --- 2. STATS CARD ---
                 item {
-                    Text("Review Stats", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Text("Review Stats", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = primaryTextColor)
                     Spacer(Modifier.height(12.dp))
 
                     val validReviews = reviews
                     val isCritic = profile!!.roleName == "Critic"
 
                     if (validReviews.isEmpty()) {
-                        Text("No reviews published yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No reviews published yet.", color = secondaryTextColor)
                         Spacer(Modifier.height(24.dp))
                     } else {
                         val avgRaw = validReviews.map { it.score }.average()
@@ -132,7 +140,7 @@ fun ProfileScreen(
 
                         ElevatedCard(
                             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            colors = CardDefaults.elevatedCardColors(containerColor = cardBgColor),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -152,47 +160,47 @@ fun ProfileScreen(
                                 Spacer(Modifier.width(16.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Distribution", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("Distribution", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryTextColor)
                                     Spacer(Modifier.height(8.dp))
-                                    DistRow("Pos", posCount, validReviews.size, Color(0xFF2ecc71))
-                                    DistRow("Mix", mixCount, validReviews.size, Color(0xFFf1c40f))
-                                    DistRow("Neg", negCount, validReviews.size, Color(0xFFe74c3c))
+                                    DistRow("Pos", posCount, validReviews.size, Color(0xFF2ecc71), primaryTextColor, secondaryTextColor)
+                                    DistRow("Mix", mixCount, validReviews.size, Color(0xFFf1c40f), primaryTextColor, secondaryTextColor)
+                                    DistRow("Neg", negCount, validReviews.size, Color(0xFFe74c3c), primaryTextColor, secondaryTextColor)
                                 }
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+                            HorizontalDivider(color = dividerColor, modifier = Modifier.padding(horizontal = 16.dp))
 
                             Row(modifier = Modifier.padding(16.dp)) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Highest Rated", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Highest Rated", fontSize = 12.sp, color = secondaryTextColor)
                                     Spacer(Modifier.height(4.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         ScoreBadge(highest?.score ?: 0, isCritic)
                                         Spacer(Modifier.width(6.dp))
-                                        Text(highest?.gameTitle ?: "-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(highest?.gameTitle ?: "-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryTextColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Lowest Rated", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Lowest Rated", fontSize = 12.sp, color = secondaryTextColor)
                                     Spacer(Modifier.height(4.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         ScoreBadge(lowest?.score ?: 0, isCritic)
                                         Spacer(Modifier.width(6.dp))
-                                        Text(lowest?.gameTitle ?: "-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(lowest?.gameTitle ?: "-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = primaryTextColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
                         }
                         Spacer(Modifier.height(24.dp))
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    HorizontalDivider(color = dividerColor)
                     Spacer(Modifier.height(24.dp))
                 }
 
                 // --- 3. FILTERS ---
                 item {
-                    Text("Reviews (${displayReviews.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Text("Reviews (${displayReviews.size})", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = primaryTextColor)
                     Spacer(Modifier.height(8.dp))
 
                     LazyRow(
@@ -204,7 +212,7 @@ fun ProfileScreen(
                         item { FilterChip(selected = currentFilter == "yellow", onClick = { viewModel.setFilter("yellow") }, label = { Text("Mixed") }) }
                         item { FilterChip(selected = currentFilter == "red", onClick = { viewModel.setFilter("red") }, label = { Text("Negative") }) }
 
-                        item { Spacer(Modifier.width(8.dp)) } // Separator for sorting
+                        item { Spacer(Modifier.width(8.dp)) }
 
                         item { FilterChip(selected = currentSort == "date-desc", onClick = { viewModel.setSort("date-desc") }, label = { Text("Newest") }) }
                         item { FilterChip(selected = currentSort == "desc", onClick = { viewModel.setSort("desc") }, label = { Text("Highest") }) }
@@ -215,7 +223,7 @@ fun ProfileScreen(
 
                 // --- 4. REVIEWS ---
                 items(displayReviews) { review ->
-                    ReviewCard(review, profile!!.roleName == "Critic", onNavigateToGame)
+                    ReviewCard(review, profile!!.roleName == "Critic", cardBgColor, primaryTextColor, secondaryTextColor, onNavigateToGame)
                 }
 
                 item { Spacer(Modifier.height(40.dp)) }
@@ -225,17 +233,17 @@ fun ProfileScreen(
 }
 
 @Composable
-fun DistRow(label: String, count: Int, total: Int, color: Color) {
+fun DistRow(label: String, count: Int, total: Int, color: Color, primaryTextColor: Color, secondaryTextColor: Color) {
     val progress = if (total > 0) count.toFloat() / total else 0f
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, fontSize = 12.sp, modifier = Modifier.width(36.dp), color = MaterialTheme.colorScheme.onSurface)
+        Text(label, fontSize = 12.sp, modifier = Modifier.width(36.dp), color = primaryTextColor)
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
-        Text(count.toString(), fontSize = 12.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(count.toString(), fontSize = 12.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.End, color = secondaryTextColor)
     }
 }
 
@@ -253,28 +261,28 @@ fun ScoreBadge(score: Int, isCritic: Boolean) {
 }
 
 @Composable
-fun ReviewCard(review: ReviewResponse, isCritic: Boolean, onNavigateToGame: (Long) -> Unit) {
+fun ReviewCard(review: ReviewResponse, isCritic: Boolean, cardBgColor: Color, primaryTextColor: Color, secondaryTextColor: Color, onNavigateToGame: (Long) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     ElevatedCard(
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.elevatedCardColors(containerColor = cardBgColor),
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(review.createdAt.toString().substringBefore("T"), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(review.createdAt.toString().substringBefore("T"), color = secondaryTextColor, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onNavigateToGame(review.gameId) }) {
                 ScoreBadge(review.score, isCritic)
                 Spacer(Modifier.width(12.dp))
-                Text(review.gameTitle, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(review.gameTitle, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2D9CDB), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (!review.comment.isNullOrEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Column(modifier = Modifier.animateContentSize()) {
                     Text(
                         text = review.comment,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = primaryTextColor,
                         maxLines = if (expanded) Int.MAX_VALUE else 4,
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 14.sp

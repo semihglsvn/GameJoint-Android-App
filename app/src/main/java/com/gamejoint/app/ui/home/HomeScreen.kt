@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,7 +26,6 @@ import coil.compose.AsyncImage
 import com.gamejoint.app.data.model.GameSummary
 import kotlinx.coroutines.launch
 
-val SurfaceDark = Color(0xFF222222)
 // REBRAND: Fully transitioned to JointScore naming
 val JointScoreGreen = Color(0xFF55C72E)
 val JointScoreYellow = Color(0xFFD4A017)
@@ -45,16 +45,23 @@ fun HomeScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
+    // --- MAGIC FIX: Detect theme dynamically to preserve your custom Dark Mode hexes! ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val cardBgColor = if (isLightMode) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF222222)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.LightGray
+
     if (showBanPopup) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissBanPopup() },
-            containerColor = SurfaceDark,
+            containerColor = cardBgColor,
             title = { Text("Account Restricted", color = JointScoreRed, fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Your account has been reviewed and restricted by a human moderator for violating our community guidelines.", color = Color.White)
+                    Text("Your account has been reviewed and restricted by a human moderator for violating our community guidelines.", color = primaryTextColor)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("There is no automated system involved, and this decision is final. No appeals will be accepted at this time.", color = Color.LightGray, fontSize = 14.sp)
+                    Text("There is no automated system involved, and this decision is final. No appeals will be accepted at this time.", color = secondaryTextColor, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Restriction Ends: ${banExpiration ?: "Permanent"}", color = JointScoreRed, fontWeight = FontWeight.Bold)
                 }
@@ -76,12 +83,12 @@ fun HomeScreen(
                 isRefreshing = false
             }
         },
-        modifier = Modifier.fillMaxSize().background(Color(0xFF181818))
+        modifier = Modifier.fillMaxSize().background(appBgColor)
     ) {
         when (uiState) {
             is HomeState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
+                    CircularProgressIndicator(color = primaryTextColor)
                 }
             }
             is HomeState.Error -> {
@@ -109,7 +116,7 @@ fun HomeScreen(
                         .padding(vertical = 16.dp)
                 ) {
                     if (data.featured.isNotEmpty()) {
-                        item { SectionTitle("Featured Games") }
+                        item { SectionTitle("Featured Games", primaryTextColor) }
                         item {
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -125,6 +132,9 @@ fun HomeScreen(
                                         imageUrl = imageUrl,
                                         score = score,
                                         genres = genreList,
+                                        cardBgColor = cardBgColor,
+                                        primaryTextColor = primaryTextColor,
+                                        secondaryTextColor = secondaryTextColor,
                                         onClick = { onGameClick(game.gameId ?: 0L) }
                                     )
                                 }
@@ -133,18 +143,18 @@ fun HomeScreen(
                     }
 
                     if (data.trending.isNotEmpty()) {
-                        item { SectionTitle("Trending") }
-                        item { HorizontalGameCarousel(data.trending, onGameClick) }
+                        item { SectionTitle("Trending", primaryTextColor) }
+                        item { HorizontalGameCarousel(data.trending, cardBgColor, primaryTextColor, secondaryTextColor, onGameClick) }
                     }
 
                     if (data.newReleases.isNotEmpty()) {
-                        item { SectionTitle("New Releases") }
-                        item { HorizontalGameCarousel(data.newReleases, onGameClick) }
+                        item { SectionTitle("New Releases", primaryTextColor) }
+                        item { HorizontalGameCarousel(data.newReleases, cardBgColor, primaryTextColor, secondaryTextColor, onGameClick) }
                     }
 
                     if (data.topRated.isNotEmpty()) {
-                        item { SectionTitle("Top Rated") }
-                        item { HorizontalGameCarousel(data.topRated, onGameClick) }
+                        item { SectionTitle("Top Rated", primaryTextColor) }
+                        item { HorizontalGameCarousel(data.topRated, cardBgColor, primaryTextColor, secondaryTextColor, onGameClick) }
                     }
                 }
             }
@@ -153,10 +163,10 @@ fun HomeScreen(
 }
 
 @Composable
-fun SectionTitle(title: String) {
+fun SectionTitle(title: String, textColor: Color) {
     Text(
         text = title,
-        color = Color.White,
+        color = textColor,
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 16.dp)
@@ -164,7 +174,7 @@ fun SectionTitle(title: String) {
 }
 
 @Composable
-fun HorizontalGameCarousel(games: List<GameSummary>, onGameClick: (Long) -> Unit) {
+fun HorizontalGameCarousel(games: List<GameSummary>, cardBgColor: Color, primaryTextColor: Color, secondaryTextColor: Color, onGameClick: (Long) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -178,6 +188,9 @@ fun HorizontalGameCarousel(games: List<GameSummary>, onGameClick: (Long) -> Unit
                 imageUrl = game.coverImage ?: "",
                 score = game.metascore ?: 0,
                 genres = genreList,
+                cardBgColor = cardBgColor,
+                primaryTextColor = primaryTextColor,
+                secondaryTextColor = secondaryTextColor,
                 onClick = { onGameClick(game.id ?: 0L) }
             )
         }
@@ -190,6 +203,9 @@ fun GameCard(
     imageUrl: String,
     score: Int,
     genres: List<String>,
+    cardBgColor: Color,
+    primaryTextColor: Color,
+    secondaryTextColor: Color,
     onClick: () -> Unit
 ) {
     Card(
@@ -197,7 +213,7 @@ fun GameCard(
             .width(260.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark)
+        colors = CardDefaults.cardColors(containerColor = cardBgColor)
     ) {
         Column {
             AsyncImage(
@@ -210,7 +226,7 @@ fun GameCard(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = primaryTextColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     maxLines = 1,
@@ -220,16 +236,16 @@ fun GameCard(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (genres.isEmpty()) {
-                        GenreChip("N/A")
+                        GenreChip("N/A", secondaryTextColor)
                     } else {
                         genres.forEach { genre ->
-                            GenreChip(genre)
+                            GenreChip(genre, secondaryTextColor)
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = Color(0xFF444444), thickness = 1.dp)
+                HorizontalDivider(color = secondaryTextColor.copy(alpha = 0.5f), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
@@ -237,7 +253,7 @@ fun GameCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "JOINTSCORE", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "JOINTSCORE", color = secondaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     ScoreBox(score)
                 }
             }
@@ -246,9 +262,9 @@ fun GameCard(
 }
 
 @Composable
-fun GenreChip(text: String) {
-    Box(modifier = Modifier.border(1.dp, Color.Gray, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-        Text(text = text.uppercase(), color = Color.LightGray, fontSize = 10.sp)
+fun GenreChip(text: String, textColor: Color) {
+    Box(modifier = Modifier.border(1.dp, textColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+        Text(text = text.uppercase(), color = textColor, fontSize = 10.sp)
     }
 }
 

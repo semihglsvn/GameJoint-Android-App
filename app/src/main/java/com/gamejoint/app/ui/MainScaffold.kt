@@ -23,6 +23,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
 import com.gamejoint.app.R
 import kotlinx.coroutines.delay
@@ -45,9 +46,10 @@ fun MainScaffold(
     onNavigateToLogin: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    onLogout: () -> Unit, // NEW: Logout Callback
-    onNavigateToSettings: () -> Unit, // NEW: Setting up for your next feature!
+    onLogout: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onSearchSubmit: (String) -> Unit,
+    onGameSelected: (Long) -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
@@ -60,10 +62,11 @@ fun MainScaffold(
                 onNavigateToProfile = onNavigateToProfile,
                 onLogout = onLogout,
                 onNavigateToSettings = onNavigateToSettings,
-                onSearchSubmit = onSearchSubmit
+                onSearchSubmit = onSearchSubmit,
+                onGameSelected = onGameSelected
             )
         },
-        containerColor = Color(0xFF181818) // Global app background
+        containerColor = Color(0xFF181818)
     ) { paddingValues ->
         content(paddingValues)
     }
@@ -79,7 +82,8 @@ fun GameJointHeader(
     onNavigateToProfile: () -> Unit,
     onLogout: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onSearchSubmit: (String) -> Unit
+    onSearchSubmit: (String) -> Unit,
+    onGameSelected: (Long) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
@@ -121,6 +125,8 @@ fun GameJointHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
+            // LOCKED: Keeps the top bar pitch-dark so white/yellow logos stand out properly
             .background(HeaderFooterDark)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -185,6 +191,7 @@ fun GameJointHeader(
             DropdownMenu(
                 expanded = isSearchExpanded,
                 onDismissRequest = { isSearchExpanded = false },
+                properties = PopupProperties(focusable = false),
                 modifier = Modifier
                     .background(SearchBackground)
                     .fillMaxWidth(0.6f)
@@ -207,10 +214,9 @@ fun GameJointHeader(
                             }
                         },
                         onClick = {
-                            val queryToSubmit = result.title
                             searchQuery = ""
                             isSearchExpanded = false
-                            onSearchSubmit(queryToSubmit)
+                            onGameSelected(result.id)
                         }
                     )
                 }
@@ -244,7 +250,6 @@ fun GameJointHeader(
                         text = { Text("Settings", color = Color.White) },
                         onClick = { isMenuExpanded = false; onNavigateToSettings() }
                     )
-                    // NEW: Highlight the logout button in red!
                     DropdownMenuItem(
                         text = { Text("Logout", color = Color(0xFFE74C3C)) },
                         onClick = {

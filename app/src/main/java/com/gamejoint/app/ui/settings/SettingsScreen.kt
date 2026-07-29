@@ -1,6 +1,7 @@
 package com.gamejoint.app.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalUriHandler
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +47,7 @@ fun SettingsScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     var isRefreshing by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     val onRefresh: () -> Unit = {
         isRefreshing = true
@@ -86,7 +89,6 @@ fun SettingsScreen(
                 Text("Account Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // UX FIX: Using ElevatedCard for a much cleaner, premium look
                 ElevatedCard(
                     elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
                     colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -145,7 +147,6 @@ fun SettingsScreen(
                                 onValueChange = { newValue ->
                                     val rounded = newValue.roundToInt().toLong()
                                     viewModel.updateCacheSize(rounded)
-                                    // Text updates automatically via the remember block
                                 },
                                 valueRange = 10f..500f,
                                 colors = SliderDefaults.colors(
@@ -159,7 +160,6 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = cacheInputText,
                                 onValueChange = { input ->
-                                    // BUG FIX: Strip non-digits and cap at 500
                                     val filtered = input.filter { it.isDigit() }
                                     if (filtered.isNotEmpty()) {
                                         val num = filtered.toLong()
@@ -213,7 +213,7 @@ fun SettingsScreen(
                 if (profile?.deletionDate != null) {
                     ElevatedCard(
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF331111)), // Dark red tint
+                        colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF331111)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -248,6 +248,30 @@ fun SettingsScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- 5. ABOUT / DATA PROVIDER (MOVED INSIDE THE COLUMN) ---
+                Text("About", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ElevatedCard(
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { uriHandler.openUri("https://rawg.io") }
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Game Data provided by RAWG.io", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Tap here to visit their website.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(40.dp))
             }
         }
@@ -277,6 +301,7 @@ fun SettingsScreen(
             onExecute = { otp, newValue -> viewModel.changePassword(otp, newValue, onSuccess = onLogout) }
         )
     }
+
     if (showDeleteDialog) {
         SecureActionDialog(
             title = "Delete Account",
@@ -286,7 +311,6 @@ fun SettingsScreen(
             onExecute = { otp, _ ->
                 viewModel.deleteAccount(otp, onSuccess = {
                     showDeleteDialog = false
-                    // THE FIX: This triggers the logout flow, wiping the session and clearing the screen stack!
                     onLogout()
                 })
             }

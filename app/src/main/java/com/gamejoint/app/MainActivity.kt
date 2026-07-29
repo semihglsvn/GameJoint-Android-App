@@ -152,7 +152,6 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             onNavigateToLogin = { navController.navigate("login") },
             onNavigateToRegister = { navController.navigate("register") },
             onNavigateToProfile = {
-                // FIXED: Use the local 'currentToken' state variable directly!
                 if (!currentToken.isNullOrEmpty()) {
                     try {
                         val payload = String(android.util.Base64.decode(currentToken!!.split(".")[1], android.util.Base64.URL_SAFE))
@@ -173,7 +172,10 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                 }
             },
             onNavigateToSettings = { navController.navigate("settings") },
-            onSearchSubmit = { query -> navController.navigate("search?query=$query") }
+            onSearchSubmit = { query -> navController.navigate("search?query=$query") },
+
+            // THE FIX: Changed 'game_detail' to 'gameDetails' to match the NavHost route!
+            onGameSelected = { gameId -> navController.navigate("gameDetails/$gameId") }
         ) { innerPadding ->
 
             NavHost(
@@ -259,7 +261,6 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                     val gameId = backStackEntry.arguments?.getLong("gameId") ?: 0L
                     GameDetailScreen(
                         gameId = gameId,
-                        // FIXED: Route to the Profile screen using the Author's username string
                         onNavigateToProfile = { username -> navController.navigate("profile/$username") }
                     )
                 }

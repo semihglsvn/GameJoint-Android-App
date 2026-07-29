@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 sealed class VerifyState {
     object Idle : VerifyState()
@@ -38,8 +39,14 @@ class VerificationViewModel : ViewModel() {
                 if (response.isSuccessful) {
                     _uiState.value = VerifyState.Success
                 } else {
-                    // Try to grab the error message from the backend, otherwise show default
-                    _uiState.value = VerifyState.Error("Invalid or expired code. Please try again.")
+                    val errorString = response.errorBody()?.string() ?: ""
+                    val message = try {
+                        val json = JSONObject(errorString)
+                        json.optString("message", "Invalid or expired code. Please try again.")
+                    } catch (e: Exception) {
+                        "Invalid or expired code. Please try again."
+                    }
+                    _uiState.value = VerifyState.Error(message)
                 }
             } catch (e: Exception) {
                 _uiState.value = VerifyState.Error("Network Error: ${e.localizedMessage}")

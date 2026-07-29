@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -31,6 +32,12 @@ fun VerificationScreen(
     // We store the 6 digits as a single string, but draw it as 6 boxes
     var otpValue by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
+
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
 
     // Auto-fire the network request the moment they type the 6th digit
     LaunchedEffect(otpValue) {
@@ -60,13 +67,15 @@ fun VerificationScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(appBgColor)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = if (isPasswordReset) "Reset Password" else "Verify Account",
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineMedium,
+            color = primaryTextColor
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -74,7 +83,7 @@ fun VerificationScreen(
         Text(
             text = "We sent a 6-digit code to:\n$email",
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = secondaryTextColor
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -102,7 +111,7 @@ fun VerificationScreen(
                         val isFocused = index == otpValue.length
                         val borderColor = if (uiState is VerifyState.Error) MaterialTheme.colorScheme.error
                         else if (isFocused) Color(0xFF27AE60)
-                        else Color.Gray
+                        else secondaryTextColor
 
                         Box(
                             modifier = Modifier
@@ -113,7 +122,8 @@ fun VerificationScreen(
                         ) {
                             Text(
                                 text = char,
-                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                                color = primaryTextColor
                             )
                         }
                     }

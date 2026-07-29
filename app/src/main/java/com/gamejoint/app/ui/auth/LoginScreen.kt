@@ -1,5 +1,6 @@
 package com.gamejoint.app.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -8,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,6 +35,12 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     // --- AUTO-NAVIGATION & TOKEN SAVING ---
     LaunchedEffect(uiState) {
         when (val state = uiState) {
@@ -52,11 +60,16 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(appBgColor)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "Welcome to GameJoint", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Welcome to GameJoint",
+            style = MaterialTheme.typography.headlineMedium,
+            color = primaryTextColor
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -64,7 +77,16 @@ fun LoginScreen(
             value = usernameOrEmail,
             onValueChange = { usernameOrEmail = it; localError = null },
             label = { Text("Username or Email") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedLabelColor = Color(0xFF27AE60),
+                unfocusedLabelColor = secondaryTextColor,
+                focusedBorderColor = Color(0xFF27AE60),
+                unfocusedBorderColor = secondaryTextColor,
+                cursorColor = Color(0xFF27AE60)
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -74,13 +96,22 @@ fun LoginScreen(
             onValueChange = { password = it; localError = null },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedLabelColor = Color(0xFF27AE60),
+                unfocusedLabelColor = secondaryTextColor,
+                focusedBorderColor = Color(0xFF27AE60),
+                unfocusedBorderColor = secondaryTextColor,
+                cursorColor = Color(0xFF27AE60)
+            )
         )
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             Text(
                 text = "Forgot Password?",
-                color = MaterialTheme.colorScheme.primary,
+                color = Color(0xFF27AE60),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
                     .padding(top = 8.dp)
@@ -117,7 +148,7 @@ fun LoginScreen(
                         viewModel.login(usernameOrEmail, password)
                     }
                 ) {
-                    Text("Login")
+                    Text("Login", color = Color.White)
                 }
             }
         }
@@ -126,7 +157,7 @@ fun LoginScreen(
 
         Text(
             text = "Don't have an account? Register here",
-            color = MaterialTheme.colorScheme.primary,
+            color = Color(0xFF27AE60),
             modifier = Modifier.clickable { onNavigateToRegister() }
         )
     }

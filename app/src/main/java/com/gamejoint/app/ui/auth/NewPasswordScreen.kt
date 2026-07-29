@@ -1,11 +1,13 @@
 package com.gamejoint.app.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,6 +26,12 @@ fun NewPasswordScreen(
     var confirmPassword by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     // --- AUTO-NAVIGATION ON SUCCESS ---
     LaunchedEffect(uiState) {
         if (uiState is NewPasswordState.Success) {
@@ -35,18 +43,23 @@ fun NewPasswordScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(appBgColor)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "Create New Password", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Create New Password",
+            style = MaterialTheme.typography.headlineMedium,
+            color = primaryTextColor
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Your identity has been verified. Please enter a strong new password below.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = secondaryTextColor,
             textAlign = TextAlign.Center
         )
 
@@ -57,7 +70,16 @@ fun NewPasswordScreen(
             onValueChange = { newPassword = it; localError = null },
             label = { Text("New Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedLabelColor = Color(0xFF27AE60),
+                unfocusedLabelColor = secondaryTextColor,
+                focusedBorderColor = Color(0xFF27AE60),
+                unfocusedBorderColor = secondaryTextColor,
+                cursorColor = Color(0xFF27AE60)
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -67,7 +89,16 @@ fun NewPasswordScreen(
             onValueChange = { confirmPassword = it; localError = null },
             label = { Text("Confirm New Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedLabelColor = Color(0xFF27AE60),
+                unfocusedLabelColor = secondaryTextColor,
+                focusedBorderColor = Color(0xFF27AE60),
+                unfocusedBorderColor = secondaryTextColor,
+                cursorColor = Color(0xFF27AE60)
+            )
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -93,8 +124,11 @@ fun NewPasswordScreen(
                     color = Color(0xFF27AE60)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onNavigateToLogin) {
-                    Text("Return to Login")
+                Button(
+                    onClick = onNavigateToLogin,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF27AE60))
+                ) {
+                    Text("Return to Login", color = Color.White)
                 }
             }
             else -> {
@@ -121,7 +155,7 @@ fun NewPasswordScreen(
                         viewModel.resetPassword(email = email, otp = otpCode, newPassword = newPassword)
                     }
                 ) {
-                    Text("Save & Login")
+                    Text("Save & Login", color = Color.White)
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.gamejoint.app.ui.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -8,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,6 +25,12 @@ fun ForgotScreen(
     var email by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
+    // --- LUMINANCE DETECTION ---
+    val isLightMode = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val appBgColor = if (isLightMode) MaterialTheme.colorScheme.background else Color(0xFF181818)
+    val primaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onBackground else Color.White
+    val secondaryTextColor = if (isLightMode) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
+
     // --- AUTO-NAVIGATION ON SUCCESS ---
     LaunchedEffect(uiState) {
         if (uiState is ForgotState.Success) {
@@ -34,18 +42,23 @@ fun ForgotScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(appBgColor)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "Reset Password", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Reset Password",
+            style = MaterialTheme.typography.headlineMedium,
+            color = primaryTextColor
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Enter your email address and we will send you a 6-digit code to reset your password.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = secondaryTextColor
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -55,7 +68,16 @@ fun ForgotScreen(
             onValueChange = { email = it; localError = null },
             label = { Text("Email Address") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedLabelColor = Color(0xFF27AE60),
+                unfocusedLabelColor = secondaryTextColor,
+                focusedBorderColor = Color(0xFF27AE60),
+                unfocusedBorderColor = secondaryTextColor,
+                cursorColor = Color(0xFF27AE60)
+            )
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -86,7 +108,7 @@ fun ForgotScreen(
                         viewModel.requestPasswordReset(email)
                     }
                 ) {
-                    Text("Send Reset Code")
+                    Text("Send Reset Code", color = Color.White)
                 }
             }
         }
@@ -95,7 +117,7 @@ fun ForgotScreen(
 
         Text(
             text = "Back to Login",
-            color = MaterialTheme.colorScheme.primary,
+            color = Color(0xFF27AE60),
             modifier = Modifier.clickable { onNavigateBackToLogin() }
         )
     }

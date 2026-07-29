@@ -232,10 +232,30 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun handleNetworkError(errorBody: String?, code: Int): String {
+        // 1. First, try to parse the exact JSON message from Spring Boot (handles 429 rate limits, validation errors, etc.)
+        try {
+            if (!errorBody.isNullOrBlank() && errorBody.startsWith("{")) {
+                val json = JSONObject(errorBody)
+                if (json.has("message")) {
+                    return json.getString("message")
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback if parsing fails
+        }
+
+        // 2. Check for account restrictions, bans, or 403 Forbidden
         if (errorBody?.contains("restricted", ignoreCase = true) == true || code == 403) {
             isBanned.value = true
             return "Action blocked: Your account is restricted."
         }
+
+        // 3. Specific fallback for 429 if the JSON message wasn't caught above
+        if (code == 429) {
+            return "You are doing this too fast. Please try again later."
+        }
+
+        // 4. General default fallback
         return "Action failed (Error $code)"
     }
 

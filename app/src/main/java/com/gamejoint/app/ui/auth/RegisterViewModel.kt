@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 
 sealed class RegisterState {
     object Idle : RegisterState()
@@ -54,10 +56,18 @@ class RegisterViewModel : ViewModel() {
                 }
 
                 if (response.isSuccessful) {
-                    // Pass the email into the success state
                     _uiState.value = RegisterState.Success(email)
                 } else {
-                    _uiState.value = RegisterState.Error("Registration failed: ${response.code()}")
+                    val errorBodyString = response.errorBody()?.string()
+                    val errorMessage = try {
+                        // Parse the JSON message sent by Spring Boot's GlobalExceptionHandler
+                        val jsonObject = Gson().fromJson(errorBodyString, JsonObject::class.java)
+                        jsonObject.get("message")?.asString ?: "Registration failed (${response.code()})"
+                    } catch (e: Exception) {
+                        "Registration failed: ${response.code()}"
+                    }
+
+                    _uiState.value = RegisterState.Error(errorMessage)
                 }
             } catch (e: Exception) {
                 _uiState.value = RegisterState.Error("Network Error: ${e.localizedMessage}")
