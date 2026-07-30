@@ -135,12 +135,15 @@ class GameDetailViewModel(application: Application) : AndroidViewModel(applicati
                     val reviews = userRevResponse.body()?.content ?: emptyList()
                     rawUserReviews.value = reviews
                     avgUserScore.value = if (reviews.isNotEmpty()) reviews.map { it.score }.average() else null
-                    detectExistingUserReview(reviews)
                 }
 
                 if (criticRevResponse.isSuccessful) {
                     rawCriticReviews.value = criticRevResponse.body()?.content ?: emptyList()
                 }
+
+                // --- THE FIX: Combine both lists before checking for an existing review ---
+                val allReviews = rawUserReviews.value + rawCriticReviews.value
+                detectExistingUserReview(allReviews)
 
                 applyFiltersAndSort()
             } catch (e: Exception) {

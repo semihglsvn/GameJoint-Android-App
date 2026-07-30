@@ -11,7 +11,6 @@ android {
             minorApiLevel = 1
         }
     }
-
     defaultConfig {
         applicationId = "com.gamejoint.app"
         minSdk = 28
@@ -24,8 +23,10 @@ android {
         // --- FIXED: Read from local.properties without needing Java imports ---
         var mobileSecret = ""
         val localPropertiesFile = rootProject.file("local.properties")
+
         if (localPropertiesFile.exists()) {
-            localPropertiesFile.readLines().forEach { line ->
+            // Replaced .forEach with a standard for-loop to avoid Gradle DSL scope confusion
+            for (line in localPropertiesFile.readLines()) {
                 if (line.startsWith("MOBILE_API_SECRET=")) {
                     mobileSecret = line.substringAfter("=").trim()
                 }
@@ -38,9 +39,10 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // Removed "proguard-rules.pro" so it doesn't look for the missing file
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
 
