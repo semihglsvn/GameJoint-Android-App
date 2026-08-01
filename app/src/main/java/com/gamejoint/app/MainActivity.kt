@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -113,8 +114,14 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
 
             while (attempts < 5 && !success) {
                 try {
-                    val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt"
-                    val request = Request.Builder().url(gistUrl).build()
+                    val timestamp = System.currentTimeMillis()
+                    val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt?t=$timestamp"
+
+                    val request = Request.Builder()
+                        .url(gistUrl)
+                        .cacheControl(CacheControl.FORCE_NETWORK)
+                        .build()
+
                     val response = OkHttpClient().newCall(request).execute()
 
                     val responseBody = response.body?.string()?.trim()
@@ -151,18 +158,15 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             },
             onNavigateToLogin = { navController.navigate("login") },
             onNavigateToRegister = { navController.navigate("register") },
+
+            // --- CLEANED UP NAVIGATION LOGIC ---
             onNavigateToProfile = {
-                if (!currentToken.isNullOrEmpty()) {
-                    try {
-                        val payload = String(android.util.Base64.decode(currentToken!!.split(".")[1], android.util.Base64.URL_SAFE))
-                        val json = org.json.JSONObject(payload)
-                        val username = if (json.has("sub")) json.getString("sub") else json.optString("username", "")
-                        if (username.isNotEmpty()) {
-                            navController.navigate("profile/$username")
-                        }
-                    } catch (e: Exception) {}
+                val username = sessionManager.getUsernameFromToken(currentToken)
+                if (!username.isNullOrEmpty()) {
+                    navController.navigate("profile/$username")
                 }
             },
+
             onLogout = {
                 coroutineScope.launch {
                     sessionManager.clearSession()
@@ -173,8 +177,6 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             },
             onNavigateToSettings = { navController.navigate("settings") },
             onSearchSubmit = { query -> navController.navigate("search?query=$query") },
-
-            // THE FIX: Changed 'game_detail' to 'gameDetails' to match the NavHost route!
             onGameSelected = { gameId -> navController.navigate("gameDetails/$gameId") }
         ) { innerPadding ->
 

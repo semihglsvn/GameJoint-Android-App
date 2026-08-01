@@ -1,6 +1,7 @@
 package com.gamejoint.app.data.local
 
 import android.content.Context
+import android.util.Base64
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 // Creates a single, safe instance of DataStore tied to the Application Context
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_session")
@@ -43,6 +45,29 @@ class SessionManager(private val context: Context) {
     suspend fun clearSession() {
         context.dataStore.edit { preferences ->
             preferences.remove(JWT_TOKEN_KEY)
+        }
+    }
+
+    /**
+     * Decodes the JWT token to extract the username safely.
+     * Returns null if the token is invalid, empty, or malformed.
+     */
+    fun getUsernameFromToken(token: String?): String? {
+        if (token.isNullOrEmpty()) return null
+
+        return try {
+            // JWTs are split into 3 parts: Header.Payload.Signature. We want the Payload (index 1).
+            val payload = String(Base64.decode(token.split(".")[1], Base64.URL_SAFE))
+            val json = JSONObject(payload)
+
+            // Check for 'sub' first, fallback to 'username'
+            if (json.has("sub")) {
+                json.getString("sub")
+            } else {
+                json.optString("username", null)
+            }
+        } catch (e: Exception) {
+            null // Safely fail instead of crashing the app
         }
     }
 }
