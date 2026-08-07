@@ -35,7 +35,8 @@ class NewPasswordViewModel : ViewModel() {
                 )
 
                 val response = withContext(Dispatchers.IO) {
-                    ApiClient.authService.resetPasswordOtp(request).execute()
+                    // FIX: Changed from resetPasswordOtp to resetPassword to match your API interface
+                    ApiClient.authService.resetPassword(request).execute()
                 }
 
                 if (response.isSuccessful) {

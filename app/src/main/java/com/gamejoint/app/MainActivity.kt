@@ -24,6 +24,7 @@ import com.gamejoint.app.ui.MainScaffold
 import com.gamejoint.app.ui.auth.ForgotScreen
 import com.gamejoint.app.ui.auth.LoginScreen
 import com.gamejoint.app.ui.auth.NewPasswordScreen
+import com.gamejoint.app.ui.auth.OAuthCompleteScreen
 import com.gamejoint.app.ui.auth.RegisterScreen
 import com.gamejoint.app.ui.auth.VerificationScreen
 import com.gamejoint.app.ui.game.GameDetailScreen
@@ -32,13 +33,8 @@ import com.gamejoint.app.ui.search.SearchScreen
 import com.gamejoint.app.ui.settings.SettingsScreen
 import com.gamejoint.app.ui.profile.ProfileScreen
 import com.gamejoint.app.ui.theme.Gamejoint_appTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.CacheControl
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import java.net.URLEncoder
 
 object SettingsHelper {
     const val PREFS_NAME = "gamejoint_settings"
@@ -106,39 +102,10 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
     val currentToken by sessionManager.jwtTokenFlow.collectAsState(initial = null)
     val isUserLoggedIn = !currentToken.isNullOrEmpty()
 
+    // --- INSTANT API INITIALIZATION ---
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            var attempts = 0
-            var success = false
-            var fetchedUrl = ""
-
-            while (attempts < 5 && !success) {
-                try {
-                    val timestamp = System.currentTimeMillis()
-                    val gistUrl = "https://gist.githubusercontent.com/semihglsvn/2a19ca1c724e0af67545b22c78f4a9dc/raw/gamejoint_config.txt?t=$timestamp"
-
-                    val request = Request.Builder()
-                        .url(gistUrl)
-                        .cacheControl(CacheControl.FORCE_NETWORK)
-                        .build()
-
-                    val response = OkHttpClient().newCall(request).execute()
-
-                    val responseBody = response.body?.string()?.trim()
-                    if (!responseBody.isNullOrEmpty() && responseBody.startsWith("http")) {
-                        fetchedUrl = responseBody
-                        success = true
-                    }
-                } catch (e: Exception) {
-                    attempts++
-                    delay(2000)
-                }
-            }
-
-            val finalUrl = if (success) fetchedUrl else "http://10.0.2.2:8080/"
-            ApiClient.initialize(finalUrl, sessionManager)
-            isApiReady = true
-        }
+        ApiClient.initialize("https://api.game-joint.net/", sessionManager)
+        isApiReady = true
     }
 
     if (!isApiReady) {
@@ -158,15 +125,12 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
             },
             onNavigateToLogin = { navController.navigate("login") },
             onNavigateToRegister = { navController.navigate("register") },
-
-            // --- CLEANED UP NAVIGATION LOGIC ---
             onNavigateToProfile = {
                 val username = sessionManager.getUsernameFromToken(currentToken)
                 if (!username.isNullOrEmpty()) {
                     navController.navigate("profile/$username")
                 }
             },
-
             onLogout = {
                 coroutineScope.launch {
                     sessionManager.clearSession()
@@ -190,14 +154,50 @@ fun GameJointNavigationApp(onThemeChanged: (Int) -> Unit) {
                         onNavigateToHome = { navController.navigate("home") { popUpTo("login") { inclusive = true } } },
                         onNavigateToRegister = { navController.navigate("register") },
                         onNavigateToForgot = { navController.navigate("forgot") },
-                        onNavigateToVerify = { email -> navController.navigate("verify/$email/false") }
+                        onNavigateToVerify = { email -> navController.navigate("verify/$email/false") },
+                        onNavigateToOAuthComplete = { email, token ->
+                            val encodedEmail = URLEncoder.encode(email, "UTF-8")
+                            val encodedToken = URLEncoder.encode(token, "UTF-8")
+                            navController.navigate("oauth_complete?email=$encodedEmail&providerToken=$encodedToken")
+                        }
                     )
                 }
 
                 composable("register") {
                     RegisterScreen(
                         onNavigateToLogin = { navController.popBackStack() },
-                        onNavigateToVerification = { email -> navController.navigate("verify/$email/false") }
+                        onNavigateToVerification = { email -> navController.navigate("verify/$email/false") },
+                        onNavigateToHome = { navController.navigate("home") { popUpTo("register") { inclusive = true } } },
+                        onNavigateToOAuthComplete = { email, token ->
+                            val encodedEmail = URLEncoder.encode(email, "UTF-8")
+                            val encodedToken = URLEncoder.encode(token, "UTF-8")
+                            navController.navigate("oauth_complete?email=$encodedEmail&providerToken=$encodedToken")
+                        }
+                    )
+                }
+
+                // --- NEW: OAUTH PROFILE COMPLETION SCREEN ---
+                composable(
+                    route = "oauth_complete?email={email}&providerToken={providerToken}",
+                    arguments = listOf(
+                        navArgument("email") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("providerToken") { type = NavType.StringType; defaultValue = "" }
+                    )
+                ) { backStackEntry ->
+                    val email = backStackEntry.arguments?.getString("email") ?: ""
+                    val providerToken = backStackEntry.arguments?.getString("providerToken") ?: ""
+
+                    OAuthCompleteScreen(
+                        email = email,
+                        providerToken = providerToken,
+                        onNavigateToHome = {
+                            navController.navigate("home") {
+                                // Clear auth screens from backstack
+                                popUpTo("login") { inclusive = true }
+                                popUpTo("register") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
 

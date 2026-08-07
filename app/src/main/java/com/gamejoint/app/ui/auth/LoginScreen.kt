@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gamejoint.app.data.local.SessionManager
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -23,12 +24,14 @@ fun LoginScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onNavigateToForgot: () -> Unit,
-    onNavigateToVerify: (String) -> Unit // NEW: Fixes the MainActivity error!
+    onNavigateToVerify: (String) -> Unit,
+    onNavigateToOAuthComplete: (String, String) -> Unit // NEW
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     // 1. Initialize DataStore SessionManager
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope() // NEW: For Google Sign In
     val sessionManager = remember { SessionManager(context) }
 
     var usernameOrEmail by remember { mutableStateOf("") }
@@ -45,13 +48,17 @@ fun LoginScreen(
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is LoginState.Success -> {
-                // 2. Save the token securely to the device
+                // Save the token securely to the device
                 sessionManager.saveToken(state.token)
                 onNavigateToHome()
             }
             is LoginState.Unverified -> {
-                // 3. Push them to the 6-digit OTP screen
+                // Push them to the 6-digit OTP screen
                 onNavigateToVerify(state.email)
+            }
+            is LoginState.OAuthIncomplete -> {
+                // Need username/DOB to complete Google signup
+                onNavigateToOAuthComplete(state.email, state.providerToken)
             }
             else -> {}
         }
@@ -145,10 +152,38 @@ fun LoginScreen(
                             return@Button
                         }
                         localError = null
-                        viewModel.login(usernameOrEmail, password)
+                        viewModel.login(usernameOrEmail.trim(), password)
                     }
                 ) {
                     Text("Login", color = Color.White)
+                }
+
+                // --- NEW: GOOGLE SIGN-IN BUTTON ---
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(text = "OR", color = secondaryTextColor, style = MaterialTheme.typography.bodySmall)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isLightMode) Color(0xFFF2F2F2) else Color(0xFF333333),
+                        contentColor = primaryTextColor
+                    ),
+                    onClick = {
+                        coroutineScope.launch {
+                            localError = null
+                            val token = GoogleAuthHelper.signInWithGoogle(context)
+                            if (token != null) {
+                                viewModel.oauthLogin("GOOGLE", token)
+                            } else {
+                                localError = "Google Sign-In was cancelled or failed."
+                            }
+                        }
+                    }
+                ) {
+                    Text("Sign in with Google")
                 }
             }
         }

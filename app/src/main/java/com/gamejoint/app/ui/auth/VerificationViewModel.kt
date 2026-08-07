@@ -33,7 +33,8 @@ class VerificationViewModel : ViewModel() {
                 val request = OtpVerifyRequest(identifier = email, otp = otp)
 
                 val response = withContext(Dispatchers.IO) {
-                    ApiClient.authService.verifyAccountOtp(request).execute()
+                    // FIX: Changed from verifyAccountOtp to verifyAccount to match your API interface
+                    ApiClient.authService.verifyAccount(request).execute()
                 }
 
                 if (response.isSuccessful) {

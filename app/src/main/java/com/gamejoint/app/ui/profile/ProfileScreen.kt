@@ -235,18 +235,33 @@ fun ProfileScreen(
 @Composable
 fun DistRow(label: String, count: Int, total: Int, color: Color, primaryTextColor: Color, secondaryTextColor: Color) {
     val progress = if (total > 0) count.toFloat() / total else 0f
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+    ) {
         Text(label, fontSize = 12.sp, modifier = Modifier.width(36.dp), color = primaryTextColor)
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
-            color = color,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+
+        // Parent Box acts as the full empty track and clips the outer edges to be round
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant) // The full empty bar
+        ) {
+            // Child Box acts as the fill, merging perfectly with the track
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .background(color)
+            )
+        }
+
         Text(count.toString(), fontSize = 12.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.End, color = secondaryTextColor)
     }
 }
-
 @Composable
 fun ScoreBadge(score: Int, isCritic: Boolean) {
     Box(

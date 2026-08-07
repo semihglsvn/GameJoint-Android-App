@@ -2,9 +2,11 @@ package com.gamejoint.app.data.remote
 
 import retrofit2.http.*
 import retrofit2.Call
+import com.gamejoint.app.data.model.OAuthAuthResponse
+import com.gamejoint.app.data.model.OAuthLoginRequest
+import com.gamejoint.app.data.model.OAuthRegistrationCompleteRequest
 import com.gamejoint.app.data.model.OtpPasswordResetRequest
 import com.gamejoint.app.data.model.OtpVerifyRequest
-import com.gamejoint.app.data.model.PasswordResetExecuteRequest
 import com.gamejoint.app.data.model.TokenResponse
 import com.gamejoint.app.data.model.UserLoginRequest
 import com.gamejoint.app.data.model.UserRegistrationRequest
@@ -24,16 +26,22 @@ interface AuthControllerApi {
     fun register(@Body userRegistrationRequest: UserRegistrationRequest): Call<Map<String, String>>
 
     /**
-     * VERIFY ACCOUNT VIA MOBILE OTP
+     * OAUTH LOGIN (Google, Steam, Discord)
      */
-    @POST("api/auth/verify/otp")
-    fun verifyAccountOtp(@Body request: OtpVerifyRequest): Call<Map<String, String>>
+    @POST("api/auth/oauth/login")
+    fun oauthLogin(@Body request: OAuthLoginRequest): Call<OAuthAuthResponse>
 
     /**
-     * RESET PASSWORD VIA MOBILE OTP
+     * OAUTH COMPLETE REGISTRATION
      */
-    @POST("api/auth/password/reset/otp")
-    fun resetPasswordOtp(@Body request: OtpPasswordResetRequest): Call<Map<String, String>>
+    @POST("api/auth/oauth/complete")
+    fun completeOAuthRegistration(@Body request: OAuthRegistrationCompleteRequest): Call<TokenResponse>
+
+    /**
+     * VERIFY ACCOUNT VIA OTP
+     */
+    @POST("api/auth/verify")
+    fun verifyAccount(@Body request: OtpVerifyRequest): Call<Map<String, String>>
 
     /**
      * RESEND VERIFICATION OTP
@@ -48,8 +56,8 @@ interface AuthControllerApi {
     fun forgotPassword(@Body requestBody: Map<String, String>): Call<Map<String, String>>
 
     /**
-     * WEB LEGACY: RESET PASSWORD VIA MAGIC LINK
+     * RESET PASSWORD VIA OTP
      */
     @POST("api/auth/password/reset")
-    fun resetPassword(@Body passwordResetExecuteRequest: PasswordResetExecuteRequest): Call<Map<String, String>>
+    fun resetPassword(@Body request: OtpPasswordResetRequest): Call<Map<String, String>>
 }
